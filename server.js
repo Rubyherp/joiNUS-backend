@@ -3,6 +3,7 @@ import cors from 'cors';
 import { supabase } from './supabaseClient.js';
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -50,7 +51,7 @@ app.post('/login', async (req, res) => {
     })
 })
 
-app.listen(3000, () => console.log('Backend running on port 3000'));
+app.listen(PORT, () => console.log(`Backend running on PORT: ${PORT}`));
 
 
 //TODO: Add santization ig? in the future
