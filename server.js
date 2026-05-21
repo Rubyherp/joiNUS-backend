@@ -51,10 +51,11 @@ app.post('/login', async (req, res) => {
     })
 })
 
+//TODO: Add santization ig? in the future
+
 app.listen(PORT, () => console.log(`Backend running on PORT: ${PORT}`));
 
 
-//TODO: Add santization ig? in the future
 
 
 
