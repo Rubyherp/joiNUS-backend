@@ -9,9 +9,9 @@ create extension if not exists "pgcrypto";
 
 -- =====================================================
 -- 1. PROFILES
--- One profile belongs to one Supabase Auth user.
--- Supabase Auth stores login info.
--- This table stores app-specific user info.
+-- One profile belongs to one Supabase Auth user
+-- Supabase Auth stores login info
+-- This table stores app-specific user info
 -- =====================================================
 
 create table if not exists profiles (
@@ -19,14 +19,17 @@ create table if not exists profiles (
 
   username text unique not null,
   display_name text not null,
+  email text,
 
   major text,
   year_of_study int,
-  bio text,
   avatar_url text,
 
+  about_modules text[] not null default '{}',
+  about_description text,
+
   skills text[] not null default '{}',
-  interests text[] not null default '{}',
+  experiences text,
 
   collaboration_count int not null default 0,
 
@@ -71,12 +74,12 @@ create table if not exists posts (
 -- =====================================================
 
 create table if not exists saved_posts (
-  user_id uuid not null references profiles(id) on delete cascade,
-  post_id uuid not null references posts(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade, --which user saved the post
+  post_id uuid not null references posts(id) on delete cascade,-- which post did they save
 
-  created_at timestamptz not null default now(),
+  created_at timestamptz not null default now(), -- when was it saved
 
-  primary key (user_id, post_id)
+  primary key (user_id, post_id) -- same user cannot save the post twice 
 );
 
 
@@ -86,13 +89,13 @@ create table if not exists saved_posts (
 -- =====================================================
 
 create table if not exists join_requests (
-  id uuid primary key default gen_random_uuid(),
+  id uuid primary key default gen_random_uuid(), --every join request has its own unique ID 
 
-  post_id uuid not null references posts(id) on delete cascade,
-  requester_id uuid not null references profiles(id) on delete cascade,
+  post_id uuid not null references posts(id) on delete cascade, --post the user is requesting to join 
+  requester_id uuid not null references profiles(id) on delete cascade, --which user requested to join 
 
-  message text,
-  status text not null default 'pending',
+  message text, --optional message from the requester 
+  status text not null default 'pending', --1st request to join, status is pending !
 
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
