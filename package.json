@@ -8,7 +8,7 @@
     "type": "module",
     "main": "server.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "test": "NODE_OPTIONS=--experimental-vm-modules jest",
         "start": "node server.js"
     },
     "dependencies": {
@@ -20,6 +20,8 @@
         "multer": "^2.1.1"
     },
     "devDependencies": {
+        "jest": "^30.0.5",
+        "supertest": "^7.1.1",
         "supabase": "^2.101.0"
     }
 }
