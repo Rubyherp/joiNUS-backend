@@ -122,10 +122,7 @@ app.get("/profile", authMiddleware, async (req, res) => {
     return res.status(200).json(data);
 });
 
-app.post(
-    "/changeAvatar",
-    authMiddleware,
-    upload.single("avatar"),
+app.post("/changeAvatar", authMiddleware, upload.single("avatar"),
     async (req, res) => {
         try {
             console.log("USER:", req.user);
@@ -170,5 +167,93 @@ app.post(
         }
     }
 );
+
+// posts
+app.post('/posts', authMiddleware, upload.none(), async (req, res) => {
+    const {
+        communityId,
+        title,
+        description,
+        imageUrl,
+        moreDetails,
+        requirements,
+        memberLimit,
+        deadline,
+    } = req.body;
+
+    const { error } = await supabase
+        .from('posts')
+        .insert({
+            author_id: req.user.id,
+            community_id: communityId,
+            title,
+            description,
+            image_url: imageUrl,
+            more_details: moreDetails,
+            requirements,
+            member_limit: memberLimit ? parseInt(memberLimit) : null,
+            deadline,
+        })
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json({ message: 'Post created successfully' });
+})
+
+app.get('/posts', authMiddleware, async (req, res) => {
+    const { data, error } = await supabase
+        .from('posts')
+        .select('*, communities(id, name, category, tags)')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json(data);
+})
+
+app.post('/uploadPostImage', authMiddleware, upload.single('postFile'), async (req, res) => {
+    console.log('file:', req.file);
+    console.log('mimetype:', req.file?.mimetype);
+    const file = req.file;
+
+    if (!file) {
+        return res.status(400).json({ error: "No file uploaded" })
+    }
+
+    const filePath = `posts/${req.user.id}-${Date.now()}.jpg`;
+
+    const { error } = await supabase.storage
+        .from('post-images')
+        .upload(filePath, file.buffer, {
+            contentType: 'image/jpeg',
+            upsert: false
+        });
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    const { data } = supabase.storage.from('post-images').getPublicUrl(filePath);
+
+    return res.status(200).json({ imageUrl: data.publicUrl });
+})
+
+//community
+app.get('/communities', authMiddleware, async (req, res) => {
+    const { data, error } = await supabase
+        .from('communities')
+        .select('*');
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json(data);
+})
+
 
 export default app;
