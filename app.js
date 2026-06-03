@@ -68,6 +68,7 @@ app.post("/login", async (req, res) => {
     });
 });
 
+//profile
 app.post("/profileCreation", authMiddleware, async (req, res) => {
     const {
         avatar,
@@ -214,6 +215,22 @@ app.get('/posts', authMiddleware, async (req, res) => {
     return res.status(200).json(data);
 })
 
+app.get('/fetchPostById/:postId', authMiddleware, async (req, res) => {
+    const { postId } = req.params;
+    const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('id', postId)
+        .maybeSingle();
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json(data);
+})
+
+
 app.post('/uploadPostImage', authMiddleware, upload.single('postFile'), async (req, res) => {
     console.log('file:', req.file);
     console.log('mimetype:', req.file?.mimetype);
@@ -246,6 +263,21 @@ app.get('/communities', authMiddleware, async (req, res) => {
     const { data, error } = await supabase
         .from('communities')
         .select('*');
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json(data);
+})
+
+app.get('/fetchCommunityById/:communityId', authMiddleware, async (req, res) => {
+    const { communityId } = req.params;
+    const { data, error } = await supabase
+        .from('communities')
+        .select('*')
+        .eq('id', communityId)
+        .maybeSingle();
 
     if (error) {
         return res.status(400).json({ error: error.message });
