@@ -19,7 +19,6 @@ app.get("/ping", (req, res) => {
 });
 
 // user sign up
-// tested using postman first to see if it works
 app.post("/register", async (req, res) => {
     const { email, password } = req.body;
 
@@ -247,6 +246,22 @@ app.get('/communities', authMiddleware, async (req, res) => {
     const { data, error } = await supabase
         .from('communities')
         .select('*');
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json(data);
+})
+
+//user
+app.get('/fetchUserDetails/:userId', authMiddleware, async (req, res) => {
+    const { userId } = req.params;
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('username, avatar')
+        .eq('id', userId)
+        .maybeSingle();
 
     if (error) {
         return res.status(400).json({ error: error.message });
