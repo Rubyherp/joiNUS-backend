@@ -263,6 +263,60 @@ app.post('/uploadPostImage', authMiddleware, upload.single('postFile'), async (r
     return res.status(200).json({ imageUrl: data.publicUrl });
 })
 
+// get user's saved posts
+app.get('/posts/saved', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+
+    const { data, error } = await supabase
+        .from('post_saves')
+        .select('post_id, posts(*)')
+        .eq('user_id', userId);
+
+    if (error) {
+        return res.status(400).json({ error: error.message })
+    }
+
+    return res.status(200).json(data);
+})
+
+// user saving a post
+app.post('/posts/:id/save', authMiddleware, async (req, res) => {
+    const { id: postId } = req.params;
+    const userId = req.user.id;
+
+    const { error } = await supabase
+        .from('post_saves')
+        .insert({
+            post_id: postId,
+            user_id: userId,
+        })
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json({ message: 'Saved post successfully' })
+})
+
+// user unsave a post
+app.delete('/posts/:id/save', authMiddleware, async (req, res) => {
+    const { id: postId } = req.params;
+    const userId = req.user.id;
+
+    const { error } = await supabase
+        .from('post_saves')
+        .delete()
+        .eq('post_id', postId)
+        .eq('user_id', userId);
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json({ message: "Unsaved post successfully" })
+})
+
+
 //get communities
 app.get('/communities', authMiddleware, async (req, res) => {
     const { data, error } = await supabase
@@ -328,7 +382,7 @@ app.post('/communities/:id/follow', authMiddleware, async (req, res) => {
 })
 
 // user unfollow a community
-app.delete('/communities/:id/unfollow', authMiddleware, async (req, res) => {
+app.delete('/communities/:id/follow', authMiddleware, async (req, res) => {
     const { id: communityId } = req.params;
     const userId = req.user.id;
 
