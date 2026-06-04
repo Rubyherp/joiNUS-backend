@@ -37,6 +37,7 @@ app.post("/register", async (req, res) => {
     });
 });
 
+// login
 app.post("/login", async (req, res) => {
     const { email, password } = req.body;
 
@@ -68,7 +69,7 @@ app.post("/login", async (req, res) => {
     });
 });
 
-//profile
+//profile creation
 app.post("/profileCreation", authMiddleware, async (req, res) => {
     const {
         avatar,
@@ -103,6 +104,7 @@ app.post("/profileCreation", authMiddleware, async (req, res) => {
     return res.status(200).json({ message: "Profile created successfully" });
 });
 
+// fetch profile
 app.get("/profile", authMiddleware, async (req, res) => {
     console.log(req.user);
     const userId = req.user.id;
@@ -122,6 +124,7 @@ app.get("/profile", authMiddleware, async (req, res) => {
     return res.status(200).json(data);
 });
 
+// change avatar
 app.post("/changeAvatar", authMiddleware, upload.single("avatar"),
     async (req, res) => {
         try {
@@ -168,7 +171,7 @@ app.post("/changeAvatar", authMiddleware, upload.single("avatar"),
     }
 );
 
-// posts
+// create post
 app.post('/posts', authMiddleware, upload.none(), async (req, res) => {
     const {
         communityId,
@@ -202,6 +205,7 @@ app.post('/posts', authMiddleware, upload.none(), async (req, res) => {
     return res.status(200).json({ message: 'Post created successfully' });
 })
 
+// get posts
 app.get('/posts', authMiddleware, async (req, res) => {
     const { data, error } = await supabase
         .from('posts')
@@ -215,6 +219,7 @@ app.get('/posts', authMiddleware, async (req, res) => {
     return res.status(200).json(data);
 })
 
+// get post by id
 app.get('/fetchPostById/:postId', authMiddleware, async (req, res) => {
     const { postId } = req.params;
     const { data, error } = await supabase
@@ -230,7 +235,7 @@ app.get('/fetchPostById/:postId', authMiddleware, async (req, res) => {
     return res.status(200).json(data);
 })
 
-
+// upload post image
 app.post('/uploadPostImage', authMiddleware, upload.single('postFile'), async (req, res) => {
     console.log('file:', req.file);
     console.log('mimetype:', req.file?.mimetype);
@@ -258,7 +263,7 @@ app.post('/uploadPostImage', authMiddleware, upload.single('postFile'), async (r
     return res.status(200).json({ imageUrl: data.publicUrl });
 })
 
-//community
+//get communities
 app.get('/communities', authMiddleware, async (req, res) => {
     const { data, error } = await supabase
         .from('communities')
@@ -271,6 +276,7 @@ app.get('/communities', authMiddleware, async (req, res) => {
     return res.status(200).json(data);
 })
 
+// get community by id
 app.get('/fetchCommunityById/:communityId', authMiddleware, async (req, res) => {
     const { communityId } = req.params;
     const { data, error } = await supabase
@@ -286,7 +292,61 @@ app.get('/fetchCommunityById/:communityId', authMiddleware, async (req, res) => 
     return res.status(200).json(data);
 })
 
-//user
+// get user's following communities
+app.get('/communities/following', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+
+    const { data, error } = await supabase
+        .from('community_follows')
+        .select('community_id, communities(*)')
+        .eq('user_id', userId);
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json(data);
+})
+
+// user follow a community
+app.post('/communities/:id/follow', authMiddleware, async (req, res) => {
+    const { id: communityId } = req.params;
+    const userId = req.user.id;
+
+    const { error } = await supabase
+        .from('community_follows')
+        .insert({
+            user_id: userId,
+            community_id: communityId
+        });
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json({ message: 'Followed community successfully' })
+})
+
+// user unfollow a community
+app.delete('/communities/:id/unfollow', authMiddleware, async (req, res) => {
+    const { id: communityId } = req.params;
+    const userId = req.user.id;
+
+    const { error } = await supabase
+        .from('community_follows')
+        .delete()
+        .eq('user_id', userId)
+        .eq('community_id', communityId);
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json({ message: 'Unfollowed community successfully' })
+})
+
+
+// get user details by id
 app.get('/fetchUserDetails/:userId', authMiddleware, async (req, res) => {
     const { userId } = req.params;
     const { data, error } = await supabase
@@ -301,6 +361,5 @@ app.get('/fetchUserDetails/:userId', authMiddleware, async (req, res) => {
 
     return res.status(200).json(data);
 })
-
 
 export default app;
