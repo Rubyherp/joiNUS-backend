@@ -222,10 +222,13 @@ app.get('/posts', authMiddleware, async (req, res) => {
 // get post by id
 app.get('/fetchPostById/:postId', authMiddleware, async (req, res) => {
     const { postId } = req.params;
+    const userId = req.user.id;
+
     const { data, error } = await supabase
         .from('posts')
-        .select('*')
+        .select('*, post_saves!left(user_id)')
         .eq('id', postId)
+        .eq('post_saves.user_id', userId)
         .maybeSingle();
 
     if (error) {
