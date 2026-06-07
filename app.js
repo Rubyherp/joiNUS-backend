@@ -336,10 +336,13 @@ app.get('/communities', authMiddleware, async (req, res) => {
 // get community by id
 app.get('/fetchCommunityById/:communityId', authMiddleware, async (req, res) => {
     const { communityId } = req.params;
+    const userId = req.user.id;
+
     const { data, error } = await supabase
         .from('communities')
-        .select('*')
+        .select('*, community_follows!left(user_id)')
         .eq('id', communityId)
+        .eq('community_follows.user_id', userId)
         .maybeSingle();
 
     if (error) {
