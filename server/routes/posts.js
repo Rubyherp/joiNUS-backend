@@ -156,4 +156,120 @@ router.delete('/:id/save', authMiddleware, async (req, res) => {
     return res.status(200).json({ message: "Unsaved post successfully" })
 })
 
+// user sends join request
+router.post('/:id/request', authMiddleware, async (req, res) => {
+    const { id: postId } = req.params;
+    const { message } = req.body;
+    const requesterId = req.user.id;
+
+    const { error } = await supabase
+        .from('join_requests')
+        .insert({
+            post_id: postId,
+            requester_id: requesterId,
+            message: message || null,
+        });
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json({ message: 'Request sent successfully' });
+})
+
+// user check own request status for Post listing
+router.get('/:id/request/status', authMiddleware, async (req, res) => {
+    const { id: postId } = req.params;
+    const requesterId = req.user.id;
+
+    const { data, error } = await supabase
+        .from('join_requests')
+        .select('status')
+        .eq('post_id', postId)
+        .eq('requester_id', requesterId)
+        .maybeSingle();
+
+    if (error) {
+        return res.status(400).json({ error: error.message })
+    }
+
+    return res.status(200).json(data);
+})
+
+// host check pending requests for their post
+router.get('/:id/requests', authMiddleware, async (req, res) => {
+    const { id: postId } = req.params;
+    const userId = req.user.id;
+
+    const { data: post, error: postError } = await supabase
+        .from('posts')
+        .select('author_id')
+        .eq('id', postId)
+        .single();
+
+    if (postError || !post || post.author_id !== userId) {
+        return res.status(403).json({ error: 'Unauthorized to view requests for this post' });
+    }
+
+    const { data, error } = await supabase
+        .from('join_requests')
+        .select('*, profiles(username, avatar)')
+        .eq('post_id', postId)
+        .eq('status', 'pending')
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json(data);
+})
+
+// accept / reject pending requests
+router.patch('/requests/:requestId', authMiddleware, async (req, res) => {
+    const { requestId } = req.params;
+    const { status } = req.body;
+    const userId = req.user.id;
+
+    if (!['accepted', 'rejected'].includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const { data: requestData, error: fetchError } = await supabase
+        .from('join_requests')
+        .select('post_id, posts(author_id)')
+        .eq('id', requestId)
+        .single();
+
+    if (fetchError || !requestData) {
+        return res.status(404).json({ error: 'Request not found' })
+    }
+
+    if (requestData.posts.author_id !== userId) {
+        return res.status(400).json({ error: 'Unauthorized to modify this request' })
+    }
+
+    const { error } = await supabase
+        .from('join_requests')
+        .update({ status })
+        .eq('id', requestId);
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    if (status == 'accepted') {
+        const { data: requestData } = await supabase
+            .from('join_requests')
+            .select('post_id')
+            .eq('id', requestId)
+            .single();
+
+        await supabase.rpc('increment_member_count', { post_id: requestData.post_id });
+    }
+
+    return res.status(200).json({ message: `Request ${status}` });
+
+})
+
+
 export default router;
