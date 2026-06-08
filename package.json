@@ -9,7 +9,7 @@
     "main": "server.js",
     "scripts": {
         "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-        "start": "node server.js"
+        "start": "node server/server.js"
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.106.1",
