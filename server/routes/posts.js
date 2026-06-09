@@ -2,11 +2,35 @@ import { Router } from "express";
 import { supabase } from "../../supabaseClient.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 import multer from "multer";
+import { sendPushNotification } from "../utils/sendPushNotification.js";
 
 const router = Router();
 const upload = multer({
     storage: multer.memoryStorage()
 });
+
+//save user push token
+router.post('/push-token', authMiddleware, async (req, res) => {
+    const { token } = req.body;
+    if (!token) {
+        return res.status(200).json({ error: 'Token is required' });
+    }
+
+    const { error } = await supabase
+        .from('push_tokens')
+        .upsert({
+            user_id: req.user.id,
+            token
+        }, {
+            onConflict: 'user_id, token'
+        });
+
+    if (error) {
+        return res.status(400).json({ error: error.message })
+    }
+
+    return res.status(200).json({ message: 'Token saved successfully' });
+})
 
 // create post
 router.post('/', authMiddleware, upload.none(), async (req, res) => {
@@ -162,12 +186,14 @@ router.post('/:id/request', authMiddleware, async (req, res) => {
     const { message } = req.body;
     const requesterId = req.user.id;
 
+    let isResent = false;
+
     const { data: existing } = await supabase
         .from('join_requests')
         .select('status')
         .eq('post_id', postId)
         .eq('requester_id', requesterId)
-        .single();
+        .maybeSingle();
 
     if (existing) {
         if (existing.status === "pending") {
@@ -190,22 +216,55 @@ router.post('/:id/request', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: error.message });
         }
 
-        return res.status(200).json({ message: 'Request resent successfully' })
+        isResent = true;
+    } else {
+        const { error } = await supabase
+            .from('join_requests')
+            .insert({
+                post_id: postId,
+                requester_id: requesterId,
+                message: message || null,
+            });
+
+        if (error) {
+            return res.status(400).json({ error: error.message });
+        }
     }
 
-    const { error } = await supabase
-        .from('join_requests')
-        .insert({
-            post_id: postId,
-            requester_id: requesterId,
-            message: message || null,
-        });
+    // notification 
+    try {
+        const { data: post } = await supabase
+            .from('posts')
+            .select('author_id, title')
+            .eq('id', postId)
+            .single();
 
-    if (error) {
-        return res.status(400).json({ error: error.message });
+        if (post && post.author_id !== requesterId) {
+            const { data: tokenRows } = await supabase
+                .from('push_tokens')
+                .select('token')
+                .eq('user_id', post.author_id);
+
+            if (tokenRows && tokenRows.length > 0) {
+                const tokens = tokenRows.map(row => row.token);
+                const notificationText = isResent
+                    ? `A User updated their request to join "${post.title}"`
+                    : `Someone wants to join your post "${post.title}"`
+
+                await sendPushNotification(
+                    tokens,
+                    'New Join Request ✋',
+                    notificationText,
+                    { type: 'join_requests', postId }
+                );
+
+            }
+        }
+    } catch (notifError) {
+        console.error('Notification failed to dispatch:', notifError);
     }
 
-    return res.status(200).json({ message: 'Request sent successfully' });
+    return res.status(200).json({ message: isResent ? 'Request resent successfully' : 'Request sent successfully' });
 })
 
 // user check own request status for Post listing
@@ -299,7 +358,7 @@ router.patch('/requests/:requestId', authMiddleware, async (req, res) => {
 
     const { data: requestData, error: fetchError } = await supabase
         .from('join_requests')
-        .select('post_id, posts(author_id)')
+        .select('post_id, requester_id, posts(author_id, title)')
         .eq('id', requestId)
         .single();
 
@@ -324,8 +383,31 @@ router.patch('/requests/:requestId', authMiddleware, async (req, res) => {
         await supabase.rpc('increment_member_count', { post_id: requestData.post_id });
     }
 
-    return res.status(200).json({ message: `Request ${status}` });
+    try {
+        const { data: tokenRows } = await supabase
+            .from('push_tokens')
+            .select('token')
+            .eq('user_id', requestData.requester_id);
 
+        if (tokenRows && tokenRows.length > 0) {
+            const tokens = tokenRows.map(row => row.token);
+            const isAccepted = status === "accepted";
+
+            await sendPushNotification(
+                tokens,
+                isAccepted ? 'Request Approved! 🎉' : 'Request Status Update',
+                isAccepted
+                    ? `You have been accepted into "${requestData.posts.title}"!`
+                    : `Your request to join "${requestData.posts.title}" was declined.`,
+                { type: 'join_decision', postId: requestData.post_id, status }
+            )
+        }
+
+    } catch (notifError) {
+        console.error('Notification failed to dispatch:', notifError);
+    }
+
+    return res.status(200).json({ message: `Request ${status}` });
 })
 
 
