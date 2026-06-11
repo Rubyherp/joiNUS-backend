@@ -6,6 +6,7 @@ import authRoutes from "./routes/auth.js";
 import profileRoutes from "./routes/profiles.js";
 import postRoutes from "./routes/posts.js";
 import communityRoutes from "./routes/communities.js";
+import chatRoutes from "./routes/chats.js";
 
 const app = express();
 const upload = multer({
@@ -23,6 +24,7 @@ app.get("/ping", (req, res) => {
 
 app.use("/", authRoutes);
 app.use("/", profileRoutes);
+app.use("/chats", chatRoutes);
 app.use("/posts", postRoutes);
 app.use("/communities", communityRoutes);
 

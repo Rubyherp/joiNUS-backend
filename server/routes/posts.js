@@ -115,6 +115,22 @@ router.get('/fetchPostById/:postId', authMiddleware, async (req, res) => {
     return res.status(200).json(data);
 })
 
+// get post by userId
+router.get('/fetchPostsByUserId/:userId', authMiddleware, async (req, res) => {
+    const { userId } = req.params;
+
+    const { data, error } = await supabase
+        .from('posts')
+        .select('*, post_saves!left(user_id)')
+        .eq('author_id', userId);
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json(data);
+})
+
 // upload post image
 router.post('/uploadPostImage', authMiddleware, upload.single('postFile'), async (req, res) => {
     console.log('file:', req.file);
