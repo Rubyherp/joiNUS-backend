@@ -8,6 +8,7 @@ const upload = multer({
     storage: multer.memoryStorage()
 });
 
+// honestly should change this endpoint name
 //profile creation
 router.post("/profileCreation", authMiddleware, async (req, res) => {
     const {
@@ -23,7 +24,7 @@ router.post("/profileCreation", authMiddleware, async (req, res) => {
         experiences
     } = req.body;
 
-    const { error } = await supabase.from("profiles").insert({
+    const profilePayload = {
         id: req.user.id,
         avatar,
         username,
@@ -35,12 +36,18 @@ router.post("/profileCreation", authMiddleware, async (req, res) => {
         about,
         skills,
         experiences
-    });
+    };
+
+    const { data, error } = await supabase
+        .from("profiles")
+        .upsert(profilePayload, { onConflict: 'id' })
+        .select()
+        .single();
 
     if (error) {
         return res.status(400).json({ error: error.message });
     }
-    return res.status(200).json({ message: "Profile created successfully" });
+    return res.status(200).json({ message: "Profile saved succesfully", data });
 });
 
 // fetch profile
@@ -115,7 +122,7 @@ router.get('/fetchUserDetails/:userId', authMiddleware, async (req, res) => {
     const { userId } = req.params;
     const { data, error } = await supabase
         .from('profiles')
-        .select('username, avatar')
+        .select('*')
         .eq('id', userId)
         .maybeSingle();
 
