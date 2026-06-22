@@ -32,9 +32,11 @@ router.post('/push-token', authMiddleware, async (req, res) => {
     return res.status(200).json({ message: 'Token saved successfully' });
 })
 
+//TODO: change to upsert?
 // create post
 router.post('/', authMiddleware, upload.none(), async (req, res) => {
     const {
+        postId,
         communityId,
         title,
         description,
@@ -45,25 +47,45 @@ router.post('/', authMiddleware, upload.none(), async (req, res) => {
         deadline,
     } = req.body;
 
-    const { error } = await supabase
+    const postPayload = {
+        ...(postId && { id: postId }),
+        author_id: req.user.id,
+        community_id: communityId,
+        title,
+        description,
+        image_url: imageUrl,
+        more_details: moreDetails,
+        requirements,
+        member_limit: memberLimit ? parseInt(memberLimit) : null,
+        deadline,
+    }
+
+    if (postId) {
+        const { data: existing, error: fetchError } = await supabase
+            .from('posts')
+            .select('author_id')
+            .eq('id', postId)
+            .single();
+
+        if (fetchError || !existing) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+        if (existing.author_id !== req.user.id) {
+            return res.status(403).json({ error: 'Unauthorized to edit this post' });
+        }
+    }
+
+    const { data, error } = await supabase
         .from('posts')
-        .insert({
-            author_id: req.user.id,
-            community_id: communityId,
-            title,
-            description,
-            image_url: imageUrl,
-            more_details: moreDetails,
-            requirements,
-            member_limit: memberLimit ? parseInt(memberLimit) : null,
-            deadline,
-        })
+        .upsert(postPayload, { onConflict: 'id' })
+        .select()
+        .single();
 
     if (error) {
         return res.status(400).json({ error: error.message });
     }
 
-    return res.status(200).json({ message: 'Post created successfully' });
+    return res.status(200).json({ message: 'Post saved successfully', data });
 })
 
 // get posts
@@ -424,6 +446,24 @@ router.patch('/requests/:requestId', authMiddleware, async (req, res) => {
     }
 
     return res.status(200).json({ message: `Request ${status}` });
+})
+
+router.delete('/delete/:postId', authMiddleware, async (req, res) => {
+    const postId = req.params.postId;
+    const userId = req.user.id;
+
+    const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId)
+        .eq('author_id', userId);
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(200).json({ message: "Successfully deleted post" });
+
 })
 
 
