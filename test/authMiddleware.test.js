@@ -11,7 +11,7 @@ jest.unstable_mockModule("../supabaseClient.js", () => ({
 }));
 
 const { default: authMiddleware } = await import(
-    "../middleware/authMiddleware.js"
+    "../server/middleware/authMiddleware.js"
 );
 
 const createRes = () => {
