@@ -20,6 +20,7 @@ const buildChainableQuery = (overrides = {}) => {
             maybeSingle: jest.fn().mockImplementation(() => Promise.resolve(overrides.maybeSingle || { data: null, error: null })),
             insert: jest.fn().mockImplementation(() => Promise.resolve(overrides.insert || { error: null })),
             update: jest.fn().mockImplementation(() => createThenable()),
+            upsert: jest.fn().mockImplementation(() => createThenable()),
         };
         return thenable;
     };
@@ -41,14 +42,14 @@ jest.unstable_mockModule("../supabaseClient.js", () => ({
 }));
 
 // Mock auth middleware
-jest.unstable_mockModule("../middleware/authMiddleware.js", () => ({
+jest.unstable_mockModule("../server/middleware/authMiddleware.js", () => ({
     default: (req, res, next) => {
         req.user = { id: "user-001" };
         next();
     }
 }))
 
-const { default: app } = await import("../app.js");
+const { default: app } = await import("../server/app.js");
 
 let supabaseOverrides = {};
 
@@ -167,35 +168,37 @@ describe("POST /login", () => {
         expect(res.status).toBe(400);
         expect(res.body.error).toBe("Bad credentials");
     })
+})
 
-    describe("POST /profileCreation", () => {
-        it("creates a profile succesfully", async () => {
-            const res = await request(app).post('/profileCreation').send({
-                username: "Tester",
-                major: "CS",
-                year: "1",
-                modules: "CS2030S",
-                contact: "9999",
-                email: "tester@u.nus.edu",
-                about: "hello",
-                skills: "js",
-                experiences: "none"
-            });
+describe("POST /profileCreation", () => {
+    it("creates a profile succesfully", async () => {
+        supabaseOverrides.single = { data: { id: "user-001", username: "Tester" }, error: null };
 
-            expect(res.status).toBe(200);
-            expect(res.body.message).toBe("Profile created successfully");
-        })
+        const res = await request(app).post('/profileCreation').send({
+            username: "Tester",
+            major: "CS",
+            year: "1",
+            modules: "CS2030S",
+            contact: "9999",
+            email: "tester@u.nus.edu",
+            about: "hello",
+            skills: "js",
+            experiences: "none"
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe("Profile saved succesfully");
     })
 
     it("returns 400 on profile creation fail", async () => {
-        supabaseOverrides.insert = { error: { message: "Insert failed" } };
+        supabaseOverrides.single = { data: null, error: { message: "Insert failed" } };
 
-        const rest = await request(app).post('/profileCreation').send({
+        const res = await request(app).post('/profileCreation').send({
             username: "Fail"
         })
 
-        expect(rest.status).toBe(400);
-        expect(rest.body.error).toBe("Insert failed");
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe("Insert failed");
     })
 })
 
@@ -215,6 +218,18 @@ describe("GET /profile", () => {
     it("returns 404 when the profile is missing", async () => {
         supabaseOverrides.maybeSingle = {
             data: null,
+            error: null
+        };
+
+        const res = await request(app).get('/profile');
+
+        expect(res.status).toBe(404);
+        expect(res.body.error).toBe("No Profile Found");
+    })
+
+    it("returns 400 when profile fetch errors", async () => {
+        supabaseOverrides.maybeSingle = {
+            data: null,
             error: { message: "Fetch failed" }
         };
 
@@ -225,6 +240,32 @@ describe("GET /profile", () => {
     })
 })
 
+
+describe("GET /fetchUserDetails/:userId", () => {
+    it("returns the requested user's profile", async () => {
+        supabaseOverrides.maybeSingle = {
+            data: { id: "user-999", username: "OtherUser" },
+            error: null
+        };
+
+        const res = await request(app).get("/fetchUserDetails/user-999");
+
+        expect(res.status).toBe(200);
+        expect(res.body.username).toBe("OtherUser");
+    })
+
+    it("returns 400 when the lookup fails", async () => {
+        supabaseOverrides.maybeSingle = {
+            data: null,
+            error: { message: "Lookup failed" }
+        };
+
+        const res = await request(app).get("/fetchUserDetails/user-999");
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe("Lookup failed");
+    })
+})
 
 describe("POST /changeAvatar", () => {
     it("returns 404 when no file is uploaded", async () => {
