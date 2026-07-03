@@ -90,16 +90,58 @@ router.post('/', authMiddleware, upload.none(), async (req, res) => {
 
 // get posts
 router.get('/', authMiddleware, async (req, res) => {
-    const { data, error } = await supabase
-        .from('posts')
-        .select('*, communities(id, name, category, tags)')
-        .order('created_at', { ascending: false });
+    const postNum = parseInt(req.query.postNum) || 0;
+    const limit = parseInt(req.query.limit) || 10;
+    const query = req.query.query || '';
 
-    if (error) {
+    try {
+        if (query) {
+            const term = `%${query}%`;
+
+            const { data: communities, error: communityError } = await supabase
+                .from('communities')
+                .select('id')
+                .ilike('name', term);
+
+            if (communityError) throw communityError;
+
+            const communityIds = communities?.map(c => c.id) || [];
+
+            let filterParts = [`title.ilike.${term}`];
+
+            if (communityIds.length > 0) {
+                filterParts.push(`community_id.in.(${communityIds.join(',')})`);
+            }
+
+            const filterString = filterParts.join(',');
+
+            const { data, error } = await supabase
+                .from('posts')
+                .select('*, communities(id, name, category, tags)')
+                .order('created_at', { ascending: false })
+                .or(filterString)
+                .range(postNum * limit, (postNum + 1) * limit - 1);
+
+            if (error) throw error;
+
+            return res.status(200).json(data);
+        } else {
+
+            const { data, error } = await supabase
+                .from('posts')
+                .select('*, communities(id, name, category, tags)')
+                .order('created_at', { ascending: false })
+                .range(postNum * limit, (postNum + 1) * limit - 1);
+
+            if (error) throw error;
+
+            return res.status(200).json(data);
+        };
+    } catch (error) {
+        console.error('Posts fetch error:', error);
         return res.status(400).json({ error: error.message });
-    }
+    };
 
-    return res.status(200).json(data);
 })
 
 // get user's saved posts
