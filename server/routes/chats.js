@@ -22,7 +22,7 @@ router.get('/dm/:otherUserId/messages', authMiddleware, async (req, res) => {
     return res.status(200).json(data);
 })
 
-// fetch all DM conversations for current user (by gemini)
+// fetch all DM conversations for current user 
 router.get('/conversations', authMiddleware, async (req, res) => {
     const userId = req.user.id;
 
