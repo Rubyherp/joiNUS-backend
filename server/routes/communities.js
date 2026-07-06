@@ -89,4 +89,31 @@ router.delete('/:id/follow', authMiddleware, async (req, res) => {
     return res.status(200).json({ message: 'Unfollowed community successfully' })
 })
 
+router.post('/requestNewCommunity', authMiddleware, async (req, res) => {
+    const { name, description, category } = req.body;
+    console.log('Request body:', req.body);
+    const requesterId = req.user.id;
+
+    if (!name || !description || !category) {
+        return res.status(400).json({ error: 'name, description, and category are required' });
+    }
+
+    const communityPayload = {
+        requester_id: requesterId,
+        name,
+        description,
+        category
+    }
+
+    const { error } = await supabase
+        .from('community_requests')
+        .insert(communityPayload);
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    };
+
+    return res.status(200).json({ message: 'Community request submitted successfully' });
+})
+
 export default router;

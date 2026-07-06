@@ -154,3 +154,54 @@ describe("DELETE /communities/:id/follow", () => {
         expect(res.body.error).toBe("Unfollow failed");
     });
 });
+
+describe("POST /communities/requestNewCommunity", () => {
+    it("submits a community request successfully", async () => {
+        supabaseOverrides.insert = { error: null };
+
+        const res = await request(app)
+            .post("/communities/requestNewCommunity")
+            .send({ name: "Test Community", description: "A test community", category: "Study" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe("Community request submitted successfully");
+    });
+
+    it("returns 400 when name is missing", async () => {
+        const res = await request(app)
+            .post("/communities/requestNewCommunity")
+            .send({ description: "A test community", category: "Study" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe("name, description, and category are required");
+    });
+
+    it("returns 400 when description is missing", async () => {
+        const res = await request(app)
+            .post("/communities/requestNewCommunity")
+            .send({ name: "Test Community", category: "Study" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe("name, description, and category are required");
+    });
+
+    it("returns 400 when category is missing", async () => {
+        const res = await request(app)
+            .post("/communities/requestNewCommunity")
+            .send({ name: "Test Community", description: "A test community" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe("name, description, and category are required");
+    });
+
+    it("returns 400 when insert fails", async () => {
+        supabaseOverrides.insert = { error: { message: "DB error" } };
+
+        const res = await request(app)
+            .post("/communities/requestNewCommunity")
+            .send({ name: "Test Community", description: "A test community", category: "Study" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe("DB error");
+    });
+});
