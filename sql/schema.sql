@@ -105,7 +105,53 @@ create table if not exists join_requests (
 
 
 -- =====================================================
--- 5. CONSTRAINTS
+-- 5. COMMUNITIES
+-- Communities that users can follow.
+-- =====================================================
+
+create table if not exists communities (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  description text not null,
+  category text not null,
+  created_at timestamptz not null default now()
+);
+
+
+-- =====================================================
+-- 6. COMMUNITY FOLLOWS
+-- Many-to-many relationship:
+-- One user can follow many communities.
+-- One community can be followed by many users.
+-- =====================================================
+
+create table if not exists community_follows (
+  user_id uuid not null references profiles(id) on delete cascade,
+  community_id uuid not null references communities(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, community_id)
+);
+
+
+-- =====================================================
+-- 7. COMMUNITY REQUESTS
+-- Users can request new communities to be created.
+-- =====================================================
+
+create table if not exists community_requests (
+  id uuid primary key default gen_random_uuid(),
+  requester_id uuid not null references profiles(id) on delete cascade,
+  name text not null,
+  description text not null,
+  category text not null,
+  status text not null default 'pending',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+
+-- =====================================================
+-- 8. CONSTRAINTS
 -- preventing invalid data.
 -- =====================================================
 
