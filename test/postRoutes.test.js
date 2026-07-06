@@ -91,11 +91,12 @@ describe("POST /posts for create and update", () => {
 
 describe("GET /posts", () => {
     it("returns posts ordered by created date", async () => {
-        const order = jest.fn().mockResolvedValue({
+        const range = jest.fn().mockResolvedValue({
             data: [{ id: 'post-1' }, { id: 'post-2' }],
             error: null,
         });
 
+        const order = jest.fn().mockReturnValue({ range });
         const select = jest.fn().mockReturnValue({ order });
         mockFrom.mockReturnValue({ select });
 
