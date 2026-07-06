@@ -95,7 +95,7 @@ router.post('/requestNewCommunity', authMiddleware, async (req, res) => {
     const requesterId = req.user.id;
 
     if (!name || !description || !category) {
-        return res.status(400).json({ error: 'name, description, and category are required =)' });
+        return res.status(400).json({ error: 'name, description, and category are required' });
     }
 
     const communityPayload = {
