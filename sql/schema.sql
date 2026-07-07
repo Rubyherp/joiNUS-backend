@@ -1,327 +1,160 @@
---joiNUS Initial Database Schema
--- Supabase PostgreSQL
--- =====================================================
+-- joiNUS Schema
 
--- Optional but useful for UUID generation.
--- Supabase usually already has this available, but this is safe.
-create extension if not exists "pgcrypto";
-
-
--- =====================================================
--- 1. PROFILES
--- One profile belongs to one Supabase Auth user
--- Supabase Auth stores login info
--- This table stores app-specific user info
--- =====================================================
-
-create table if not exists profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-
-  username text unique not null,
-  display_name text not null,
-  email text,
-
-  major text,
-  year_of_study int,
-  avatar_url text,
-
-  about_modules text[] not null default '{}',
-  about_description text,
-
-  skills text[] not null default '{}',
-  experiences text,
-
-  collaboration_count int not null default 0,
-
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+-- ============================================================================
+-- TABLE: profiles
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username TEXT UNIQUE NOT NULL,
+  avatar TEXT,
+  major TEXT,
+  year SMALLINT,
+  contact TEXT,
+  about TEXT,
+  skills TEXT,
+  experiences TEXT,
+  modules TEXT,
+  email TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 
-
--- =====================================================
--- 2. POSTS
--- One post is created by one profile.
--- powers Home page / Create page.
--- =====================================================
-
-create table if not exists posts (
-  id uuid primary key default gen_random_uuid(),
--- generates random user id 
-  creator_id uuid not null references profiles(id) on delete cascade,
--- if profile is deleted, delete everything 
-  title text not null,
-  description text not null,
-
-  topic text,
-  category text not null,
-  meeting_mode text,
-
-  max_members int,
-  current_members int not null default 1,
-
-  status text not null default 'open',
-
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+-- ============================================================================
+-- TABLE: communities
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS communities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT UNIQUE NOT NULL,
+  description TEXT,
+  category TEXT,
+  tags TEXT[],
+  created_by UUID,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL
 );
 
-
--- =====================================================
--- 3. SAVED POSTS
--- Many-to-many relationship:
--- One user can save many posts.
--- One post can be saved by many users.
--- =====================================================
-
-create table if not exists saved_posts (
-  user_id uuid not null references profiles(id) on delete cascade, --which user saved the post
-  post_id uuid not null references posts(id) on delete cascade,-- which post did they save
-
-  created_at timestamptz not null default now(), -- when was it saved
-
-  primary key (user_id, post_id) -- same user cannot save the post twice 
+-- ============================================================================
+-- TABLE: posts
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  author_id UUID NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  image_url TEXT,
+  more_details TEXT,
+  requirements TEXT,
+  member_limit INT,
+  deadline TIMESTAMPTZ,
+  community_id UUID,
+  member_count INT DEFAULT 0 NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE SET NULL
 );
 
-
--- =====================================================
--- 4. JOIN REQUESTS
--- A user can request to join a post/collaboration.
--- =====================================================
-
-create table if not exists join_requests (
-  id uuid primary key default gen_random_uuid(), --every join request has its own unique ID 
-
-  post_id uuid not null references posts(id) on delete cascade, --post the user is requesting to join 
-  requester_id uuid not null references profiles(id) on delete cascade, --which user requested to join 
-
-  message text, --optional message from the requester 
-  status text not null default 'pending', --1st request to join, status is pending !
-
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-
-  unique (post_id, requester_id)
+-- ============================================================================
+-- TABLE: community_follows
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS community_follows (
+  user_id UUID NOT NULL,
+  community_id UUID NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (user_id, community_id),
+  FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE
 );
 
-
--- =====================================================
--- 5. COMMUNITIES
--- Communities that users can follow.
--- =====================================================
-
-create table if not exists communities (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  description text not null,
-  category text not null,
-  created_at timestamptz not null default now()
+-- ============================================================================
+-- TABLE: post_saves
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS post_saves (
+  user_id UUID NOT NULL,
+  post_id UUID NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (user_id, post_id),
+  FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE,
+  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 
-
--- =====================================================
--- 6. COMMUNITY FOLLOWS
--- Many-to-many relationship:
--- One user can follow many communities.
--- One community can be followed by many users.
--- =====================================================
-
-create table if not exists community_follows (
-  user_id uuid not null references profiles(id) on delete cascade,
-  community_id uuid not null references communities(id) on delete cascade,
-  created_at timestamptz not null default now(),
-  primary key (user_id, community_id)
+-- ============================================================================
+-- TABLE: join_requests
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS join_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID NOT NULL,
+  requester_id UUID NOT NULL,
+  message TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+  FOREIGN KEY (requester_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
-
--- =====================================================
--- 7. COMMUNITY REQUESTS
--- Users can request new communities to be created.
--- =====================================================
-
-create table if not exists community_requests (
-  id uuid primary key default gen_random_uuid(),
-  requester_id uuid not null references profiles(id) on delete cascade,
-  name text not null,
-  description text not null,
-  category text not null,
-  status text not null default 'pending',
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+-- ============================================================================
+-- TABLE: push_tokens
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS push_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  token TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
-
--- =====================================================
--- 8. CONSTRAINTS
--- preventing invalid data.
--- =====================================================
-
-alter table profiles
-drop constraint if exists profiles_year_of_study_check;
-
-alter table profiles
-add constraint profiles_year_of_study_check
-check (year_of_study is null or year_of_study between 1 and 6);
-
-
-alter table profiles
-drop constraint if exists profiles_collaboration_count_check;
-
-alter table profiles
-add constraint profiles_collaboration_count_check
-check (collaboration_count >= 0);
-
-
-alter table posts
-drop constraint if exists posts_max_members_check;
-
-alter table posts
-add constraint posts_max_members_check
-check (max_members is null or max_members >= 1);
-
-
-alter table posts
-drop constraint if exists posts_current_members_check;
-
-alter table posts
-add constraint posts_current_members_check
-check (current_members >= 1);
-
-
-alter table posts
-drop constraint if exists posts_member_count_check;
-
-alter table posts
-add constraint posts_member_count_check
-check (max_members is null or current_members <= max_members);
-
-
-alter table posts
-drop constraint if exists posts_status_check;
-
-alter table posts
-add constraint posts_status_check
-check (status in ('open', 'closed', 'completed'));
-
-
-alter table posts
-drop constraint if exists posts_category_check;
-
-alter table posts
-add constraint posts_category_check
-check (
-  category in (
-    'Study',
-    'Project',
-    'Hackathon',
-    'CCA',
-    'Music',
-    'Sports',
-    'Research',
-    'Startup',
-    'Other'
-  )
+-- ============================================================================
+-- TABLE: direct_messages
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS direct_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  room_id TEXT NOT NULL,
+  sender_id UUID,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE SET NULL
 );
 
-
-alter table posts
-drop constraint if exists posts_meeting_mode_check;
-
-alter table posts
-add constraint posts_meeting_mode_check
-check (
-  meeting_mode is null or meeting_mode in (
-    'Online',
-    'In-person',
-    'Hybrid'
-  )
+-- ============================================================================
+-- TABLE: community_requests
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS community_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  requester_id UUID NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  category TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  FOREIGN KEY (requester_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
+-- ============================================================================
+-- VIEW: dm_conversations
+-- ============================================================================
+CREATE OR REPLACE VIEW dm_conversations AS
+SELECT DISTINCT ON (room_id)
+  room_id,
+  content AS last_message,
+  created_at AS last_message_at,
+  sender_id,
+  -- Extract other_user_id from room_id (format: "user1_user2")
+  CASE 
+    WHEN sender_id::text = split_part(room_id, '_', 1) THEN split_part(room_id, '_', 2)::uuid
+    ELSE split_part(room_id, '_', 1)::uuid
+  END AS other_user_id
+FROM direct_messages
+ORDER BY room_id, created_at DESC;
 
-alter table join_requests
-drop constraint if exists join_requests_status_check;
-
-alter table join_requests
-add constraint join_requests_status_check
-check (
-  status in (
-    'pending',
-    'accepted',
-    'rejected',
-    'cancelled'
-  )
-);
-
-
--- =====================================================
--- 6. UPDATED_AT TRIGGER
--- Automatically updates updated_at when rows are edited.
--- =====================================================
-
-create or replace function set_updated_at()
-returns trigger as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$ language plpgsql;
-
-
-drop trigger if exists set_profiles_updated_at on profiles;
-
-create trigger set_profiles_updated_at
-before update on profiles
-for each row
-execute function set_updated_at();
-
-
-drop trigger if exists set_posts_updated_at on posts;
-
-create trigger set_posts_updated_at
-before update on posts
-for each row
-execute function set_updated_at();
-
-
-drop trigger if exists set_join_requests_updated_at on join_requests;
-
-create trigger set_join_requests_updated_at
-before update on join_requests
-for each row
-execute function set_updated_at();
-
-
--- =====================================================
--- 7. INDEXES
--- These make common queries faster.
--- =====================================================
-
-create index if not exists profiles_username_idx
-on profiles (username); -- finding profiles by username 
-
-
-create index if not exists posts_creator_id_idx
-on posts (creator_id); -- all posts by a user
-
-
-create index if not exists posts_category_idx
-on posts (category); -- filter by category
-
-
-create index if not exists posts_topic_idx
-on posts (topic); -- filter by topic/module 
-
-
-create index if not exists posts_status_idx
-on posts (status); -- filter open/closed/completed posts 
-
-
-create index if not exists posts_created_at_idx
-on posts (created_at desc); -- newest posts on homepage 
-
-
-create index if not exists join_requests_post_id_idx
-on join_requests (post_id); --find join requests for a post 
-
-
-create index if not exists join_requests_requester_id_idx
-on join_requests (requester_id); -- Find join requests made by a user 
+-- ============================================================================
+-- INDEXES
+-- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_posts_author_id ON posts(author_id);
+CREATE INDEX IF NOT EXISTS idx_posts_community_id ON posts(community_id);
+CREATE INDEX IF NOT EXISTS idx_join_requests_post_id ON join_requests(post_id);
+CREATE INDEX IF NOT EXISTS idx_join_requests_requester_id ON join_requests(requester_id);
+CREATE INDEX IF NOT EXISTS idx_direct_messages_room_id ON direct_messages(room_id);
+CREATE INDEX IF NOT EXISTS idx_direct_messages_sender_id ON direct_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_user_id ON push_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_requests_requester_id ON community_requests(requester_id);
+CREATE INDEX IF NOT EXISTS idx_communities_created_by ON communities(created_by);
