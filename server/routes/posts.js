@@ -45,6 +45,7 @@ router.post('/', authMiddleware, upload.none(), async (req, res) => {
         requirements,
         memberLimit,
         deadline,
+        isAnonymous
     } = req.body;
 
     const postPayload = {
@@ -58,6 +59,7 @@ router.post('/', authMiddleware, upload.none(), async (req, res) => {
         requirements,
         member_limit: memberLimit ? parseInt(memberLimit) : null,
         deadline,
+        is_anonymous: isAnonymous === 'true' || isAnonymous === true
     }
 
     if (postId) {
