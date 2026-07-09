@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { supabase } from "../../supabaseClient.js";
 import authMiddleware from "../middleware/authMiddleware.js";
+import multer from "multer";
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 // fetch DM history
 router.get('/dm/:otherUserId/messages', authMiddleware, async (req, res) => {
@@ -11,7 +13,7 @@ router.get('/dm/:otherUserId/messages', authMiddleware, async (req, res) => {
 
     const { data, error } = await supabase
         .from('direct_messages')
-        .select('*, profiles(username, avatar)')
+        .select('*, profiles(username, avatar), message_attachments!left(*)')
         .eq('room_id', roomId)
         .order('created_at', { ascending: true });
 
@@ -19,7 +21,24 @@ router.get('/dm/:otherUserId/messages', authMiddleware, async (req, res) => {
         return res.status(400).json({ error: error.message });
     }
 
+    const msgWithSignedUrls = await Promise.all(
+        (data || []).map(async (msg) => {
+            if (msg.message_attachments?.length) {
+                msg.message_attachments = await Promise.all(
+                    msg.message_attachments.map(async (att) => {
+                        const { data: urlData } = await supabase
+                            .storage
+                            .from('dm-attachments')
+                            .createSignedUrl(att.storage_path, 3600);
+                        return { ...att, signedUrl: urlData?.signedUrl || null };
+                    })
+                );
+            }
+        })
+    );
+
     return res.status(200).json(data);
+
 })
 
 // fetch all DM conversations for current user 
@@ -76,5 +95,38 @@ router.get('/conversations', authMiddleware, async (req, res) => {
 
     return res.status(200).json(conversations);
 });
+
+router.post('/upload/:otherUserId', authMiddleware, upload.single('file'), async (req, res) => {
+    const file = req.file;
+    const { otherUserId } = req.params;
+    const roomId = [req.user.id, otherUserId].sort().join('_');
+
+    if (!file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const filePath = `${roomId}/${Date.now()}_${file.originalname}`;
+
+    const { error } = await supabase
+        .storage
+        .from('dm-attachments')
+        .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+        });
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+    const { data } = await supabase.storage.from('dm-attachments').createSignedUrl(filePath, 3600);
+
+    return res.status(200).json({
+        storage_path: filePath,
+        file_name: file.originalname,
+        file_size: file.size,
+        mime_type: file.mimetype,
+        signedUrl: data.signedUrl
+    });
+
+})
 
 export default router;

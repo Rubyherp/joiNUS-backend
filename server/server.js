@@ -43,7 +43,7 @@ io.on('connection', (socket) => {
         socket.leave(`dm:${roomId}`);
     })
 
-    socket.on('send_dm', async ({ otherUserId, content }) => {
+    socket.on('send_dm', async ({ otherUserId, content, attachments }) => {
         const roomId = [socket.userId, otherUserId].sort().join('_');
 
         const { data, error } = await supabase
@@ -52,6 +52,7 @@ io.on('connection', (socket) => {
                 room_id: roomId,
                 sender_id: socket.userId,
                 content,
+                has_attachments: attachments && attachments.length > 0,
             })
             .select('*, profiles(username, avatar)')
             .single();
@@ -62,7 +63,46 @@ io.on('connection', (socket) => {
             return;
         }
 
-        io.to(`dm:${roomId}`).emit('new_dm', data);
+        if (attachments && attachments.length > 0) {
+            const { error: attachmentError } = await supabase
+                .from('message_attachments')
+                .insert(
+                    attachments.map(att => ({
+                        message_id: data.id,
+                        file_name: att.file_name,
+                        file_size: att.file_size,
+                        mime_type: att.mime_type,
+                        storage_path: att.storage_path,
+                    }))
+                )
+
+            if (attachmentError) {
+                console.log('Attachment insert error', attachmentError);
+            }
+        }
+
+        const { data: msgWithAttachments } = await supabase
+            .from('direct_messages')
+            .select('*, profiles(username, avatar), message_attachments!left(*)')
+            .eq('id', data.id)
+            .single();
+
+        const attachmentsWithSignedUrls = await Promise.all(
+            (msgWithAttachments.message_attachments || []).map(async (att) => {
+                const { data: signedUrlData, error: signedUrlError } = await supabase
+                    .storage
+                    .from('dm-attachments')
+                    .createSignedUrl(att.storage_path, 3600);
+                return {
+                    ...att,
+                    signedUrl: signedUrlData?.signedUrl || null,
+                }
+            })
+        );
+
+        msgWithAttachments.message_attachments = attachmentsWithSignedUrls;
+
+        io.to(`dm:${roomId}`).emit('new_dm', msgWithAttachments);
     })
 
     socket.on('disconnect', () => {
