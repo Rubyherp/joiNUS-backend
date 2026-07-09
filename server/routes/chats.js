@@ -21,7 +21,7 @@ router.get('/dm/:otherUserId/messages', authMiddleware, async (req, res) => {
         return res.status(400).json({ error: error.message });
     }
 
-    const msgWithSignedUrls = await Promise.all(
+    await Promise.all(
         (data || []).map(async (msg) => {
             if (msg.message_attachments?.length) {
                 msg.message_attachments = await Promise.all(
@@ -117,6 +117,7 @@ router.post('/upload/:otherUserId', authMiddleware, upload.single('file'), async
     if (error) {
         return res.status(400).json({ error: error.message });
     }
+
     const { data } = await supabase.storage.from('dm-attachments').createSignedUrl(filePath, 3600);
 
     return res.status(200).json({
@@ -124,7 +125,7 @@ router.post('/upload/:otherUserId', authMiddleware, upload.single('file'), async
         file_name: file.originalname,
         file_size: file.size,
         mime_type: file.mimetype,
-        signedUrl: data.signedUrl
+        signedUrl: data.signedUrl,
     });
 
 })
