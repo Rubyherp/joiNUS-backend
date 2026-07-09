@@ -89,7 +89,7 @@ io.on('connection', (socket) => {
 
         const attachmentsWithSignedUrls = await Promise.all(
             (msgWithAttachments.message_attachments || []).map(async (att) => {
-                const { data: signedUrlData, error: signedUrlError } = await supabase
+                const { data: signedUrlData } = await supabase
                     .storage
                     .from('dm-attachments')
                     .createSignedUrl(att.storage_path, 3600);
