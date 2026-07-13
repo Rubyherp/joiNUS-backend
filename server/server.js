@@ -30,12 +30,10 @@ io.use(async (socket, next) => {
 })
 
 io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.userId}`);
 
     socket.on('join_dm', (otherUserId) => {
         const roomId = [socket.userId, otherUserId].sort().join('_');
         socket.join(`dm:${roomId}`);
-        console.log(`${socket.userId} joined dm: ${roomId}`);
     })
 
     socket.on('leave_dm', (otherUserId) => {
@@ -58,7 +56,7 @@ io.on('connection', (socket) => {
             .single();
 
         if (error) {
-            console.log('DM insert error', error);
+            console.error('DM insert error', error);
             socket.emit('error', { message: 'Failed to send message' });
             return;
         }
@@ -77,7 +75,7 @@ io.on('connection', (socket) => {
                 )
 
             if (attachmentError) {
-                console.log('Attachment insert error', attachmentError);
+                console.error('Attachment insert error', attachmentError);
             }
         }
 
@@ -106,13 +104,13 @@ io.on('connection', (socket) => {
     })
 
     socket.on('disconnect', () => {
-        console.log(`User disconnected: ${socket.userId}`);
+
     });
 
 })
 
 const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => console.log(`Backend running on PORT: ${PORT}`));
+httpServer.listen(PORT);
 
 
 
