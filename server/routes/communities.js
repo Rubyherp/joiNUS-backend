@@ -91,7 +91,6 @@ router.delete('/:id/follow', authMiddleware, async (req, res) => {
 
 router.post('/requestNewCommunity', authMiddleware, async (req, res) => {
     const { name, description, category } = req.body;
-    console.log('Request body:', req.body);
     const requesterId = req.user.id;
 
     if (!name || !description || !category) {

@@ -52,7 +52,6 @@ router.post("/profileCreation", authMiddleware, async (req, res) => {
 
 // fetch profile
 router.get("/profile", authMiddleware, async (req, res) => {
-    console.log(req.user);
     const userId = req.user.id;
     const { data, error } = await supabase
         .from("profiles")
@@ -74,9 +73,6 @@ router.get("/profile", authMiddleware, async (req, res) => {
 router.post("/changeAvatar", authMiddleware, upload.single("avatar"),
     async (req, res) => {
         try {
-            console.log("USER:", req.user);
-            console.log("BODY:", req.body);
-            console.log(req.file);
             const file = req.file;
 
             if (!file) {
@@ -93,7 +89,7 @@ router.post("/changeAvatar", authMiddleware, upload.single("avatar"),
                 });
 
             if (uploadError) {
-                console.log("STORAGE ERROR:", uploadError);
+                console.error("STORAGE ERROR:", uploadError);
                 return res.status(400).json({ error: uploadError.message });
             }
 

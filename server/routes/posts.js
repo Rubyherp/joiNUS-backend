@@ -140,7 +140,6 @@ router.get('/', authMiddleware, async (req, res) => {
             return res.status(200).json(data);
         };
     } catch (error) {
-        console.error('Posts fetch error:', error);
         return res.status(400).json({ error: error.message });
     };
 
@@ -199,8 +198,6 @@ router.get('/fetchPostsByUserId/:userId', authMiddleware, async (req, res) => {
 
 // upload post image
 router.post('/uploadPostImage', authMiddleware, upload.single('postFile'), async (req, res) => {
-    console.log('file:', req.file);
-    console.log('mimetype:', req.file?.mimetype);
     const file = req.file;
 
     if (!file) {
@@ -432,7 +429,6 @@ router.patch('/requests/:requestId', authMiddleware, async (req, res) => {
     const { status } = req.body;
     const userId = req.user.id;
 
-    console.log('handling request');
 
     if (!['accepted', 'rejected'].includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });
