@@ -62,7 +62,7 @@ describe("GET /communities", () => {
         const res = await request(app).get("/communities");
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("DB error");
+        expect(res.body.error.message).toBe("DB error");
     });
 });
 
@@ -88,7 +88,7 @@ describe("GET /communities/fetchCommunityById/:communityId", () => {
         const res = await request(app).get("/communities/fetchCommunityById/c1");
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Not found");
+        expect(res.body.error.message).toBe("Not found");
     });
 });
 
@@ -111,7 +111,7 @@ describe("GET /communities/following", () => {
         const res = await request(app).get("/communities/following");
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Failed");
+        expect(res.body.error.message).toBe("Failed");
     });
 });
 
@@ -125,13 +125,13 @@ describe("POST /communities/:id/follow", () => {
         expect(res.body.message).toBe("Followed community successfully");
     });
 
-    it("returns 400 when follow insert fails", async () => {
+    it("returns 409 when follow insert fails", async () => {
         supabaseOverrides.insert = { error: { message: "Already following" } };
 
         const res = await request(app).post("/communities/c1/follow");
 
-        expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Already following");
+        expect(res.status).toBe(409);
+        expect(res.body.error.message).toBe("Already following");
     });
 });
 
@@ -151,7 +151,7 @@ describe("DELETE /communities/:id/follow", () => {
         const res = await request(app).delete("/communities/c1/follow");
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Unfollow failed");
+        expect(res.body.error.message).toBe("Unfollow failed");
     });
 });
 
@@ -173,7 +173,8 @@ describe("POST /communities/requestNewCommunity", () => {
             .send({ description: "A test community", category: "Study" });
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("name, description, and category are required");
+        expect(res.body.error.code).toBe("VALIDATION_ERROR");
+        expect(res.body.error.message).toBe("Invalid request body");
     });
 
     it("returns 400 when description is missing", async () => {
@@ -182,7 +183,8 @@ describe("POST /communities/requestNewCommunity", () => {
             .send({ name: "Test Community", category: "Study" });
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("name, description, and category are required");
+        expect(res.body.error.code).toBe("VALIDATION_ERROR");
+        expect(res.body.error.message).toBe("Invalid request body");
     });
 
     it("returns 400 when category is missing", async () => {
@@ -191,7 +193,8 @@ describe("POST /communities/requestNewCommunity", () => {
             .send({ name: "Test Community", description: "A test community" });
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("name, description, and category are required");
+        expect(res.body.error.code).toBe("VALIDATION_ERROR");
+        expect(res.body.error.message).toBe("Invalid request body");
     });
 
     it("returns 400 when insert fails", async () => {
@@ -202,6 +205,6 @@ describe("POST /communities/requestNewCommunity", () => {
             .send({ name: "Test Community", description: "A test community", category: "Study" });
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("DB error");
+        expect(res.body.error.message).toBe("DB error");
     });
 });

@@ -27,10 +27,16 @@ describe("authMiddleware", () => {
         const res = createRes();
         const next = jest.fn();
 
-        await authMiddleware(req, res, next);
+        try {
+            await authMiddleware(req, res, next);
+            // Should not reach here
+            expect(true).toBe(false);
+        } catch (e) {
+            expect(e.code).toBe("UNAUTHORIZED");
+            expect(e.message).toBe("No token provided");
+            expect(e.status).toBe(401);
+        }
 
-        expect(res.status).toHaveBeenCalledWith(401);
-        expect(res.json).toHaveBeenCalledWith({ error: "No token provided" });
         expect(next).not.toHaveBeenCalled();
     });
 
@@ -41,10 +47,16 @@ describe("authMiddleware", () => {
         const res = createRes();
         const next = jest.fn();
 
-        await authMiddleware(req, res, next);
+        try {
+            await authMiddleware(req, res, next);
+            // Should not reach here
+            expect(true).toBe(false);
+        } catch (e) {
+            expect(e.code).toBe("UNAUTHORIZED");
+            expect(e.message).toBe("Invalid token");
+            expect(e.status).toBe(401);
+        }
 
-        expect(res.status).toHaveBeenCalledWith(401);
-        expect(res.json).toHaveBeenCalledWith({ error: "Invalid Token p1" });
         expect(next).not.toHaveBeenCalled();
     });
 

@@ -64,7 +64,7 @@ describe("GET /chats/dm/:otherUserId/messages", () => {
         const res = await request(app).get("/chats/dm/user-2/messages");
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("DB error");
+        expect(res.body.error.message).toBe("DB error");
     });
 });
 
@@ -78,7 +78,7 @@ describe("GET /chats/conversations", () => {
         const res = await request(app).get("/chats/conversations");
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Failed to fetch");
+        expect(res.body.error.message).toBe("Failed to fetch");
     });
 
     it("returns the latest message per room with profile info attached", async () => {

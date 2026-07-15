@@ -3,6 +3,7 @@ import { supabase } from "../../supabaseClient.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 import { validate } from "../utils/validation.js";
 import { createCommunitySchema } from "../schemas/communities.js";
+import { AppError } from "../utils/AppError.js";
 
 const router = Router();
 
@@ -13,7 +14,7 @@ router.get('/', authMiddleware, async (req, res) => {
         .select('*');
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json(data);
@@ -32,7 +33,7 @@ router.get('/fetchCommunityById/:communityId', authMiddleware, async (req, res) 
         .maybeSingle();
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json(data);
@@ -48,7 +49,7 @@ router.get('/following', authMiddleware, async (req, res) => {
         .eq('user_id', userId);
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json(data);
@@ -67,7 +68,8 @@ router.post('/:id/follow', authMiddleware, async (req, res) => {
         });
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        // "Already following" is a CONFLICT
+        throw new AppError('CONFLICT', error.message, 409);
     }
 
     return res.status(200).json({ message: 'Followed community successfully' })
@@ -85,7 +87,7 @@ router.delete('/:id/follow', authMiddleware, async (req, res) => {
         .eq('community_id', communityId);
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json({ message: 'Unfollowed community successfully' })
@@ -107,7 +109,7 @@ router.post('/requestNewCommunity', authMiddleware, validate(createCommunitySche
         .insert(communityPayload);
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     };
 
     return res.status(200).json({ message: 'Community request submitted successfully' });

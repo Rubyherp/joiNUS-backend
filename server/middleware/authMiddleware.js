@@ -1,24 +1,25 @@
-import { supabase } from "../../supabaseClient.js"
+import { supabase } from "../../supabaseClient.js";
+import { AppError } from "../utils/AppError.js";
 
 const authMiddleware = async (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.split(' ')[1];
 
-    if (!token) {
-        return res.status(401).json({ error: 'No token provided' });
-    }
+  if (!token) {
+    throw new AppError('UNAUTHORIZED', 'No token provided', 401);
+  }
 
-    try {
-        const { data, error } = await supabase.auth.getUser(token)
-        if (error) {
-            return res.status(401).json({
-                error: 'Invalid Token p1'
-            })
-        }
-        req.user = data.user;
-        next();
-    } catch (error) {
-        return res.status(401).json({ error: 'Invalid Token p2' });
+  try {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error) {
+      throw new AppError('UNAUTHORIZED', 'Invalid token', 401);
     }
-}
+    req.user = data.user;
+    next();
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError('UNAUTHORIZED', 'Invalid token', 401);
+  }
+};
 
 export default authMiddleware;

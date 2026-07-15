@@ -91,7 +91,7 @@ describe("POST /register", () => {
         });
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Registration failed");
+        expect(res.body.error.message).toBe("Registration failed");
     })
 })
 
@@ -127,7 +127,7 @@ describe("POST /login", () => {
         });
 
         const res = await request(app).post('/login').send({
-            email: "noProfile.com",
+            email: "noprofile@test.com",
             password: "123456"
         })
 
@@ -151,7 +151,7 @@ describe("POST /login", () => {
         })
 
         expect(res.status).toBe(500);
-        expect(res.body.error).toBe("Failed to check profile");
+        expect(res.body.error.message).toBe("Failed to check profile");
     })
 
     it("returns 400 on login failure", async () => {
@@ -166,7 +166,7 @@ describe("POST /login", () => {
         })
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Bad credentials");
+        expect(res.body.error.message).toBe("Bad credentials");
     })
 })
 
@@ -198,7 +198,7 @@ describe("POST /profileCreation", () => {
         })
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Insert failed");
+        expect(res.body.error.message).toBe("Insert failed");
     })
 })
 
@@ -224,7 +224,7 @@ describe("GET /profile", () => {
         const res = await request(app).get('/profile');
 
         expect(res.status).toBe(404);
-        expect(res.body.error).toBe("No Profile Found");
+        expect(res.body.error.message).toBe("No profile found");
     })
 
     it("returns 400 when profile fetch errors", async () => {
@@ -236,10 +236,9 @@ describe("GET /profile", () => {
         const res = await request(app).get('/profile');
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Fetch failed");
+        expect(res.body.error.message).toBe("Fetch failed");
     })
 })
-
 
 describe("GET /fetchUserDetails/:userId", () => {
     it("returns the requested user's profile", async () => {
@@ -263,16 +262,16 @@ describe("GET /fetchUserDetails/:userId", () => {
         const res = await request(app).get("/fetchUserDetails/user-999");
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Lookup failed");
+        expect(res.body.error.message).toBe("Lookup failed");
     })
 })
 
 describe("POST /changeAvatar", () => {
-    it("returns 404 when no file is uploaded", async () => {
+    it("returns 400 when no file is uploaded", async () => {
         const res = await request(app).post("/changeAvatar");
 
-        expect(res.status).toBe(404);
-        expect(res.body.error).toBe("No file uploaded");
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("No file uploaded");
     })
 
     it("uploads avatar and updates profile sucessfully", async () => {
@@ -302,7 +301,7 @@ describe("POST /changeAvatar", () => {
             })
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Upload failed");
+        expect(res.body.error.message).toBe("Upload failed");
     })
 
     it('retuns 400 when avatar update fails', async () => {
@@ -320,6 +319,6 @@ describe("POST /changeAvatar", () => {
             })
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Update failed");
+        expect(res.body.error.message).toBe("Update failed");
     })
 })
