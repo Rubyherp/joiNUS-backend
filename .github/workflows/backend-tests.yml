@@ -40,3 +40,18 @@ jobs:
           name: backend-coverage-report
           path: coverage/
           retention-days: 7
+
+  e2e:
+    name: Run E2E smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test:e2e
+        env:
+          SUPABASE_URL_TEST: ${{ secrets.SUPABASE_URL_TEST }}
+          SUPABASE_SERVICE_KEY_TEST: ${{ secrets.SUPABASE_SERVICE_KEY_TEST }}

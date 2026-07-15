@@ -9,6 +9,7 @@
     "main": "server.js",
     "scripts": {
         "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+        "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --testMatch='**/test/e2e/**/*.test.js' --forceExit",
         "start": "node server/server.js"
     },
     "dependencies": {
