@@ -2,6 +2,8 @@ import { Router } from "express";
 import { supabase } from "../../supabaseClient.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 import multer from "multer";
+import { validate } from "../utils/validation.js";
+import { createProfileSchema } from "../schemas/profiles.js";
 
 const router = Router();
 const upload = multer({
@@ -10,7 +12,7 @@ const upload = multer({
 
 // honestly should change this endpoint name
 //profile creation
-router.post("/profileCreation", authMiddleware, async (req, res) => {
+router.post("/profileCreation", authMiddleware, validate(createProfileSchema), async (req, res) => {
     const {
         avatar,
         username,

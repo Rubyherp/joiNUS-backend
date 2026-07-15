@@ -3,6 +3,8 @@ import { supabase } from "../../supabaseClient.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 import multer from "multer";
 import { sendPushNotification } from "../utils/sendPushNotification.js";
+import { validate } from '../utils/validation.js';
+import { createPostSchema, joinRequestSchema, updateRequestSchema, pushTokenSchema } from '../schemas/posts.js';
 
 const router = Router();
 const upload = multer({
@@ -10,11 +12,8 @@ const upload = multer({
 });
 
 //save user push token
-router.post('/push-token', authMiddleware, async (req, res) => {
+router.post('/push-token', authMiddleware, validate(pushTokenSchema), async (req, res) => {
     const { token } = req.body;
-    if (!token) {
-        return res.status(200).json({ error: 'Token is required' });
-    }
 
     const { error } = await supabase
         .from('push_tokens')
@@ -34,7 +33,7 @@ router.post('/push-token', authMiddleware, async (req, res) => {
 
 //TODO: change to upsert?
 // create post
-router.post('/', authMiddleware, upload.none(), async (req, res) => {
+router.post('/', authMiddleware, upload.none(), validate(createPostSchema), async (req, res) => {
     const {
         postId,
         communityId,
@@ -57,9 +56,9 @@ router.post('/', authMiddleware, upload.none(), async (req, res) => {
         image_url: imageUrl,
         more_details: moreDetails,
         requirements,
-        member_limit: memberLimit ? parseInt(memberLimit) : null,
-        deadline,
-        is_anonymous: isAnonymous === 'true' || isAnonymous === true
+        member_limit: memberLimit || null,
+        deadline: deadline || null,
+        is_anonymous: isAnonymous || false
     }
 
     if (postId) {
@@ -260,7 +259,7 @@ router.delete('/:id/save', authMiddleware, async (req, res) => {
 })
 
 // user sends join request
-router.post('/:id/request', authMiddleware, async (req, res) => {
+router.post('/:id/request', authMiddleware, validate(joinRequestSchema), async (req, res) => {
     const { id: postId } = req.params;
     const { message } = req.body;
     const requesterId = req.user.id;
@@ -424,15 +423,10 @@ router.get('/:id/requests/pending', authMiddleware, async (req, res) => {
 })
 
 // accept / reject pending requests
-router.patch('/requests/:requestId', authMiddleware, async (req, res) => {
+router.patch('/requests/:requestId', authMiddleware, validate(updateRequestSchema), async (req, res) => {
     const { requestId } = req.params;
     const { status } = req.body;
     const userId = req.user.id;
-
-
-    if (!['accepted', 'rejected'].includes(status)) {
-        return res.status(400).json({ error: 'Invalid status' });
-    }
 
     const { data: requestData, error: fetchError } = await supabase
         .from('join_requests')
