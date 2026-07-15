@@ -10,7 +10,7 @@ export const createPostSchema = z.object({
   requirements: z.string().optional(),
   memberLimit: z.coerce.number().int().positive('Member limit must be positive').optional().nullable(),
   deadline: z.string().optional().nullable(),
-  isAnonymous: z.boolean().optional()
+  isAnonymous: z.coerce.boolean().optional()
 });
 
 export const joinRequestSchema = z.object({
