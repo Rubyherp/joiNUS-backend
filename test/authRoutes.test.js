@@ -1,6 +1,12 @@
 import request from "supertest";
 import { jest } from '@jest/globals'
 
+process.env.SUPABASE_URL = "https://test-project.supabase.co";
+process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
+
+const mockFetch = jest.fn();
+global.fetch = mockFetch;
+
 const mockSignUp = jest.fn();
 const mockSignIn = jest.fn();
 const mockFrom = jest.fn();
@@ -31,7 +37,9 @@ const buildChainableQuery = (overrides = {}) => {
 jest.unstable_mockModule("../supabaseClient.js", () => ({
     supabase: {
         auth: {
-            signUp: mockSignUp,
+            admin: {
+                createUser: mockSignUp,
+            },
             signInWithPassword: mockSignIn,
         },
         from: mockFrom,
@@ -98,12 +106,9 @@ describe("POST /register", () => {
 describe("POST /login", () => {
     it("logs in and returns JWT with hasProfile true", async () => {
         supabaseOverrides.single = { data: { id: "user-2" }, error: null };
-        mockSignIn.mockResolvedValueOnce({
-            data: {
-                user: { id: "user-2" },
-                session: { access_token: "token" },
-            },
-            error: null
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({ access_token: "token", user: { id: "user-2" } }),
         });
 
         const res = await request(app).post('/login').send({
@@ -118,12 +123,9 @@ describe("POST /login", () => {
 
     it("returns hasProfile false when profile is missing", async () => {
         supabaseOverrides.single = { data: null, error: { code: 'PGRST116' } };
-        mockSignIn.mockResolvedValueOnce({
-            data: {
-                user: { id: 'user-3' },
-                session: { access_token: "token-2" }
-            },
-            error: null
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({ access_token: "token-2", user: { id: 'user-3' } }),
         });
 
         const res = await request(app).post('/login').send({
@@ -137,12 +139,9 @@ describe("POST /login", () => {
 
     it("returns 500 when profile lookup fails", async () => {
         supabaseOverrides.single = { data: null, error: { code: 'OTHER' } };
-        mockSignIn.mockResolvedValueOnce({
-            data: {
-                user: { id: "user-4" },
-                session: { access_token: "token-3" }
-            },
-            error: null
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({ access_token: "token-3", user: { id: "user-4" } }),
         })
 
         const res = await request(app).post('/login').send({
@@ -155,9 +154,10 @@ describe("POST /login", () => {
     })
 
     it("returns 400 on login failure", async () => {
-        mockSignIn.mockResolvedValueOnce({
-            data: null,
-            error: { message: "Bad credentials" }
+        mockFetch.mockResolvedValueOnce({
+            ok: false,
+            status: 400,
+            json: () => Promise.resolve({ error_description: "Bad credentials" }),
         })
 
         const res = await request(app).post('/login').send({
