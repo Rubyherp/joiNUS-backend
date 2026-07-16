@@ -1,20 +1,21 @@
--- joiNUS Schema
+-- joiNUS Schema (reconciled with backend code)
 
 -- ============================================================================
 -- TABLE: profiles
+-- Note: id comes from auth.users (req.user.id in backend)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS profiles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
-  avatar TEXT,
-  major TEXT,
+  avatar TEXT DEFAULT '',
+  major TEXT DEFAULT '',
   year SMALLINT,
-  contact TEXT,
-  about TEXT,
-  skills TEXT,
-  experiences TEXT,
-  modules TEXT,
-  email TEXT,
+  contact TEXT DEFAULT '',
+  about TEXT DEFAULT '',
+  skills TEXT DEFAULT '',
+  experiences TEXT DEFAULT '',
+  modules TEXT DEFAULT '',
+  email TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -47,6 +48,7 @@ CREATE TABLE IF NOT EXISTS posts (
   deadline TIMESTAMPTZ,
   community_id UUID,
   member_count INT DEFAULT 0 NOT NULL,
+  is_anonymous BOOLEAN DEFAULT false NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
   FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE,
   FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE SET NULL
@@ -110,8 +112,23 @@ CREATE TABLE IF NOT EXISTS direct_messages (
   room_id TEXT NOT NULL,
   sender_id UUID,
   content TEXT NOT NULL,
+  has_attachments BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE SET NULL
+);
+
+-- ============================================================================
+-- TABLE: message_attachments
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS message_attachments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id UUID NOT NULL,
+  file_name TEXT NOT NULL,
+  file_size BIGINT NOT NULL,
+  mime_type TEXT NOT NULL,
+  storage_path TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  FOREIGN KEY (message_id) REFERENCES direct_messages(id) ON DELETE CASCADE
 );
 
 -- ============================================================================
@@ -138,7 +155,6 @@ SELECT DISTINCT ON (room_id)
   content AS last_message,
   created_at AS last_message_at,
   sender_id,
-  -- Extract other_user_id from room_id (format: "user1_user2")
   CASE 
     WHEN sender_id::text = split_part(room_id, '_', 1) THEN split_part(room_id, '_', 2)::uuid
     ELSE split_part(room_id, '_', 1)::uuid
