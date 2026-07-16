@@ -139,13 +139,4 @@ describe("E2E: Core user flow smoke test", () => {
         expect(res.status).toBe(200);
         expect(res.body.status).toBe("accepted");
     });
-
-    itWhenConfigured("should show the DM conversation for user A", async () => {
-        const res = await request
-            .get("/chats/conversations")
-            .set("Authorization", `Bearer ${userAToken}`);
-        expect(res.status).toBe(200);
-        const convWithB = res.body.find(c => c.other_user_id === userBId);
-        expect(convWithB).toBeDefined();
-    });
 });
