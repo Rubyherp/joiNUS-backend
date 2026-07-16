@@ -2,6 +2,9 @@ import { Router } from "express";
 import { supabase } from "../../supabaseClient.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 import multer from "multer";
+import { validate } from "../utils/validation.js";
+import { createProfileSchema } from "../schemas/profiles.js";
+import { AppError } from "../utils/AppError.js";
 
 const router = Router();
 const upload = multer({
@@ -10,7 +13,7 @@ const upload = multer({
 
 // honestly should change this endpoint name
 //profile creation
-router.post("/profileCreation", authMiddleware, async (req, res) => {
+router.post("/profileCreation", authMiddleware, validate(createProfileSchema), async (req, res) => {
     const {
         avatar,
         username,
@@ -45,7 +48,7 @@ router.post("/profileCreation", authMiddleware, async (req, res) => {
         .single();
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
     return res.status(200).json({ message: "Profile saved succesfully", data });
 });
@@ -60,10 +63,10 @@ router.get("/profile", authMiddleware, async (req, res) => {
         .maybeSingle();
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
     if (!data) {
-        return res.status(404).json({ error: "No Profile Found" });
+        throw new AppError('NOT_FOUND', 'No profile found', 404);
     }
 
     return res.status(200).json(data);
@@ -76,7 +79,7 @@ router.post("/changeAvatar", authMiddleware, upload.single("avatar"),
             const file = req.file;
 
             if (!file) {
-                return res.status(404).json({ error: "No file uploaded" });
+                throw new AppError('VALIDATION_ERROR', 'No file uploaded');
             }
 
             const filePath = `${req.user.id}.jpg`;
@@ -90,7 +93,7 @@ router.post("/changeAvatar", authMiddleware, upload.single("avatar"),
 
             if (uploadError) {
                 console.error("STORAGE ERROR:", uploadError);
-                return res.status(400).json({ error: uploadError.message });
+                throw new AppError('AVATAR_ERROR', uploadError.message);
             }
 
             const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
@@ -103,12 +106,12 @@ router.post("/changeAvatar", authMiddleware, upload.single("avatar"),
                 .eq("id", req.user.id);
 
             if (dbError) {
-                return res.status(400).json({ error: dbError.message });
+                throw new AppError('DB_ERROR', dbError.message);
             }
 
             return res.status(200).json({ avatar: avatarUrl });
         } catch (error) {
-            return res.status(400).json({ error: error.message });
+            throw new AppError('AVATAR_ERROR', error.message);
         }
     }
 );
@@ -123,7 +126,7 @@ router.get('/fetchUserDetails/:userId', authMiddleware, async (req, res) => {
         .maybeSingle();
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     };
 
     return res.status(200).json(data);
@@ -137,7 +140,7 @@ router.get('/fetchUserByUsername/:username', authMiddleware, async (req, res) =>
         .ilike('username', `%${username}%`);
 
     if (error) {
-        return res.status(400).json({ error: error.message })
+        throw new AppError('DB_ERROR', error.message)
     };
 
     return res.status(200).json(data);

@@ -3,6 +3,9 @@ import { supabase } from "../../supabaseClient.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 import multer from "multer";
 import { sendPushNotification } from "../utils/sendPushNotification.js";
+import { validate } from '../utils/validation.js';
+import { createPostSchema, joinRequestSchema, updateRequestSchema, pushTokenSchema } from '../schemas/posts.js';
+import { AppError } from "../utils/AppError.js";
 
 const router = Router();
 const upload = multer({
@@ -10,11 +13,8 @@ const upload = multer({
 });
 
 //save user push token
-router.post('/push-token', authMiddleware, async (req, res) => {
+router.post('/push-token', authMiddleware, validate(pushTokenSchema), async (req, res) => {
     const { token } = req.body;
-    if (!token) {
-        return res.status(200).json({ error: 'Token is required' });
-    }
 
     const { error } = await supabase
         .from('push_tokens')
@@ -26,7 +26,7 @@ router.post('/push-token', authMiddleware, async (req, res) => {
         });
 
     if (error) {
-        return res.status(400).json({ error: error.message })
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json({ message: 'Token saved successfully' });
@@ -34,7 +34,7 @@ router.post('/push-token', authMiddleware, async (req, res) => {
 
 //TODO: change to upsert?
 // create post
-router.post('/', authMiddleware, upload.none(), async (req, res) => {
+router.post('/', authMiddleware, upload.none(), validate(createPostSchema), async (req, res) => {
     const {
         postId,
         communityId,
@@ -57,9 +57,9 @@ router.post('/', authMiddleware, upload.none(), async (req, res) => {
         image_url: imageUrl,
         more_details: moreDetails,
         requirements,
-        member_limit: memberLimit ? parseInt(memberLimit) : null,
-        deadline,
-        is_anonymous: isAnonymous === 'true' || isAnonymous === true
+        member_limit: memberLimit || null,
+        deadline: deadline || null,
+        is_anonymous: isAnonymous || false
     }
 
     if (postId) {
@@ -70,10 +70,10 @@ router.post('/', authMiddleware, upload.none(), async (req, res) => {
             .single();
 
         if (fetchError || !existing) {
-            return res.status(404).json({ error: 'Post not found' });
+            throw new AppError('NOT_FOUND', 'Post not found', 404);
         }
         if (existing.author_id !== req.user.id) {
-            return res.status(403).json({ error: 'Unauthorized to edit this post' });
+            throw new AppError('FORBIDDEN', 'Unauthorized to edit this post', 403);
         }
     }
 
@@ -84,7 +84,7 @@ router.post('/', authMiddleware, upload.none(), async (req, res) => {
         .single();
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json({ message: 'Post saved successfully', data });
@@ -140,7 +140,7 @@ router.get('/', authMiddleware, async (req, res) => {
             return res.status(200).json(data);
         };
     } catch (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     };
 
 })
@@ -155,7 +155,7 @@ router.get('/saved', authMiddleware, async (req, res) => {
         .eq('user_id', userId);
 
     if (error) {
-        return res.status(400).json({ error: error.message })
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json(data);
@@ -174,7 +174,7 @@ router.get('/fetchPostById/:postId', authMiddleware, async (req, res) => {
         .maybeSingle();
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json(data);
@@ -190,7 +190,7 @@ router.get('/fetchPostsByUserId/:userId', authMiddleware, async (req, res) => {
         .eq('author_id', userId);
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json(data);
@@ -201,7 +201,7 @@ router.post('/uploadPostImage', authMiddleware, upload.single('postFile'), async
     const file = req.file;
 
     if (!file) {
-        return res.status(400).json({ error: "No file uploaded" })
+        throw new AppError('VALIDATION_ERROR', 'No file uploaded');
     }
 
     const filePath = `posts/${req.user.id}-${Date.now()}.jpg`;
@@ -214,7 +214,7 @@ router.post('/uploadPostImage', authMiddleware, upload.single('postFile'), async
         });
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     const { data } = supabase.storage.from('post-images').getPublicUrl(filePath);
@@ -235,7 +235,7 @@ router.post('/:id/save', authMiddleware, async (req, res) => {
         })
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('CONFLICT', error.message, 409);
     }
 
     return res.status(200).json({ message: 'Saved post successfully' })
@@ -253,14 +253,14 @@ router.delete('/:id/save', authMiddleware, async (req, res) => {
         .eq('user_id', userId);
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json({ message: "Unsaved post successfully" })
 })
 
 // user sends join request
-router.post('/:id/request', authMiddleware, async (req, res) => {
+router.post('/:id/request', authMiddleware, validate(joinRequestSchema), async (req, res) => {
     const { id: postId } = req.params;
     const { message } = req.body;
     const requesterId = req.user.id;
@@ -276,10 +276,10 @@ router.post('/:id/request', authMiddleware, async (req, res) => {
 
     if (existing) {
         if (existing.status === "pending") {
-            return res.status(400).json({ error: 'Request already pending' });
+            throw new AppError('CONFLICT', 'Request already pending', 409);
         }
         if (existing.status === "accepted") {
-            return res.status(400).json({ error: 'Already a member' });
+            throw new AppError('CONFLICT', 'Already a member', 409);
         }
 
         const { error } = await supabase
@@ -292,7 +292,7 @@ router.post('/:id/request', authMiddleware, async (req, res) => {
             .eq('requester_id', requesterId);
 
         if (error) {
-            return res.status(400).json({ error: error.message });
+            throw new AppError('DB_ERROR', error.message);
         }
 
         isResent = true;
@@ -306,7 +306,7 @@ router.post('/:id/request', authMiddleware, async (req, res) => {
             });
 
         if (error) {
-            return res.status(400).json({ error: error.message });
+            throw new AppError('DB_ERROR', error.message);
         }
     }
 
@@ -359,7 +359,7 @@ router.get('/:id/request/status', authMiddleware, async (req, res) => {
         .maybeSingle();
 
     if (error) {
-        return res.status(400).json({ error: error.message })
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json(data);
@@ -378,7 +378,7 @@ router.get('/:id/requests/accepted', authMiddleware, async (req, res) => {
         .single();
 
     if (postError || !post || post.author_id !== userId) {
-        return res.status(403).json({ error: 'Unauthorized to view requests for this post' });
+        throw new AppError('FORBIDDEN', 'Unauthorized to view requests for this post', 403);
     }
 
     const { data, error } = await supabase
@@ -388,7 +388,7 @@ router.get('/:id/requests/accepted', authMiddleware, async (req, res) => {
         .eq('status', 'accepted')
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json(data);
@@ -407,7 +407,7 @@ router.get('/:id/requests/pending', authMiddleware, async (req, res) => {
         .single();
 
     if (postError || !post || post.author_id !== userId) {
-        return res.status(403).json({ error: 'Unauthorized to view requests for this post' });
+        throw new AppError('FORBIDDEN', 'Unauthorized to view requests for this post', 403);
     }
 
     const { data, error } = await supabase
@@ -417,22 +417,17 @@ router.get('/:id/requests/pending', authMiddleware, async (req, res) => {
         .eq('status', 'pending')
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json(data);
 })
 
 // accept / reject pending requests
-router.patch('/requests/:requestId', authMiddleware, async (req, res) => {
+router.patch('/requests/:requestId', authMiddleware, validate(updateRequestSchema), async (req, res) => {
     const { requestId } = req.params;
     const { status } = req.body;
     const userId = req.user.id;
-
-
-    if (!['accepted', 'rejected'].includes(status)) {
-        return res.status(400).json({ error: 'Invalid status' });
-    }
 
     const { data: requestData, error: fetchError } = await supabase
         .from('join_requests')
@@ -441,11 +436,11 @@ router.patch('/requests/:requestId', authMiddleware, async (req, res) => {
         .single();
 
     if (fetchError || !requestData) {
-        return res.status(404).json({ error: 'Request not found' })
+        throw new AppError('NOT_FOUND', 'Request not found', 404);
     }
 
     if (requestData.posts.author_id !== userId) {
-        return res.status(400).json({ error: 'Unauthorized to modify this request' })
+        throw new AppError('FORBIDDEN', 'Unauthorized to modify this request', 403);
     }
 
     const { error } = await supabase
@@ -454,7 +449,7 @@ router.patch('/requests/:requestId', authMiddleware, async (req, res) => {
         .eq('id', requestId);
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     if (status == 'accepted') {
@@ -499,7 +494,7 @@ router.delete('/delete/:postId', authMiddleware, async (req, res) => {
         .eq('author_id', userId);
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     return res.status(200).json({ message: "Successfully deleted post" });

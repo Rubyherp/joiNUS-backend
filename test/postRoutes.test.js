@@ -70,10 +70,11 @@ describe("POST /posts for create and update", () => {
         const res = await request(app).post("/posts").send({
             postId: "nope",
             title: "nope",
+            description: "nope",
         });
 
         expect(res.status).toBe(404);
-        expect(res.body.error).toBe("Post not found");
+        expect(res.body.error.message).toBe("Post not found");
     });
 
     it("returns 400 when upsert fails", async () => {
@@ -82,10 +83,10 @@ describe("POST /posts for create and update", () => {
         const upsert = jest.fn().mockReturnValue({ select });
         mockFrom.mockReturnValue({ upsert });
 
-        const res = await request(app).post("/posts").send({ title: "Bad post" });
+        const res = await request(app).post("/posts").send({ title: "Bad post", description: "bad" });
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Insert failed");
+        expect(res.body.error.message).toBe("Insert failed");
     });
 });
 
@@ -132,7 +133,7 @@ describe("POST /posts/uploadPostImage", () => {
         const res = await request(app).post("/posts/uploadPostImage");
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("No file uploaded");
+        expect(res.body.error.message).toBe("No file uploaded");
     });
 
     it("uploads an image and returns its public URL", async () => {
@@ -163,7 +164,7 @@ describe("POST /posts/uploadPostImage", () => {
             });
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Storage error");
+        expect(res.body.error.message).toBe("Storage error");
     });
 });
 
@@ -179,14 +180,14 @@ describe("POST /posts/:id/save and DELETE /posts/:id/save", () => {
         expect(insert).toHaveBeenCalledWith({ post_id: "post-1", user_id: "user-001" });
     });
 
-    it("returns 400 when save insert fails", async () => {
+    it("returns 409 when save insert fails", async () => {
         const insert = jest.fn().mockResolvedValue({ error: { message: "Duplicate save" } });
         mockFrom.mockReturnValue({ insert });
 
         const res = await request(app).post("/posts/post-1/save");
 
-        expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Duplicate save");
+        expect(res.status).toBe(409);
+        expect(res.body.error.message).toBe("Duplicate save");
     });
 
     it("unsaves a post successfully", async () => {
@@ -203,7 +204,7 @@ describe("POST /posts/:id/save and DELETE /posts/:id/save", () => {
 });
 
 describe("POST /posts/:id/request", () => {
-    it("returns 400 when pending request already exists", async () => {
+    it("returns 409 when pending request already exists", async () => {
         const maybeSingle = jest.fn().mockResolvedValue({
             data: { status: "pending" },
             error: null,
@@ -216,8 +217,8 @@ describe("POST /posts/:id/request", () => {
 
         const res = await request(app).post("/posts/post-1/request").send({});
 
-        expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Request already pending");
+        expect(res.status).toBe(409);
+        expect(res.body.error.message).toBe("Request already pending");
     });
 
     it("resends a previously rejected request", async () => {
@@ -261,7 +262,7 @@ describe("POST /posts/:id/request", () => {
 });
 
 describe("PATCH /posts/requests/:requestId", () => {
-    it("returns 400 when current user is not the post author", async () => {
+    it("returns 403 when current user is not the post author", async () => {
         const single = jest.fn().mockResolvedValue({
             data: {
                 post_id: "post-1",
@@ -276,8 +277,8 @@ describe("PATCH /posts/requests/:requestId", () => {
 
         const res = await request(app).patch("/posts/requests/request-1").send({ status: "accepted" });
 
-        expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Unauthorized to modify this request");
+        expect(res.status).toBe(403);
+        expect(res.body.error.message).toBe("Unauthorized to modify this request");
     });
 
 
@@ -353,7 +354,7 @@ describe("GET /posts/fetchPostById/:postId", () => {
         const res = await request(app).get("/posts/fetchPostById/post-1");
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe("Failed");
+        expect(res.body.error.message).toBe("Failed");
     });
 });
 

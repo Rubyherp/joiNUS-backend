@@ -2,6 +2,7 @@ import { Router } from "express";
 import { supabase } from "../../supabaseClient.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 import multer from "multer";
+import { AppError } from "../utils/AppError.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -18,7 +19,7 @@ router.get('/dm/:otherUserId/messages', authMiddleware, async (req, res) => {
         .order('created_at', { ascending: true });
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     await Promise.all(
@@ -51,7 +52,7 @@ router.get('/conversations', authMiddleware, async (req, res) => {
         .or(`room_id.like.${userId}_%,room_id.like.%_${userId}`)
         .order('created_at', { ascending: false });
 
-    if (msgError) return res.status(400).json({ error: msgError.message });
+    if (msgError) throw new AppError('DB_ERROR', msgError.message);
 
     // Filter out only the latest message per room
     const roomMap = new Map();
@@ -102,7 +103,7 @@ router.post('/upload/:otherUserId', authMiddleware, upload.single('file'), async
     const roomId = [req.user.id, otherUserId].sort().join('_');
 
     if (!file) {
-        return res.status(400).json({ error: 'No file uploaded' });
+        throw new AppError('VALIDATION_ERROR', 'No file uploaded');
     }
 
     const filePath = `${roomId}/${Date.now()}_${file.originalname}`;
@@ -115,7 +116,7 @@ router.post('/upload/:otherUserId', authMiddleware, upload.single('file'), async
         });
 
     if (error) {
-        return res.status(400).json({ error: error.message });
+        throw new AppError('DB_ERROR', error.message);
     }
 
     const { data } = await supabase.storage.from('dm-attachments').createSignedUrl(filePath, 3600);

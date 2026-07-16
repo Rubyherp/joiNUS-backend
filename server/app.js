@@ -7,6 +7,7 @@ import profileRoutes from "./routes/profiles.js";
 import postRoutes from "./routes/posts.js";
 import communityRoutes from "./routes/communities.js";
 import chatRoutes from "./routes/chats.js";
+import { errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();
 const upload = multer({
@@ -27,5 +28,7 @@ app.use("/", profileRoutes);
 app.use("/chats", chatRoutes);
 app.use("/posts", postRoutes);
 app.use("/communities", communityRoutes);
+
+app.use(errorHandler);
 
 export default app;
