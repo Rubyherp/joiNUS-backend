@@ -7,6 +7,9 @@ import { createClient } from "@supabase/supabase-js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(__dirname, "../../.env.test") });
 
+process.env.SUPABASE_URL = process.env.SUPABASE_URL_TEST;
+process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_KEY_TEST;
+
 const SUPABASE_URL = process.env.SUPABASE_URL_TEST;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY_TEST;
 
