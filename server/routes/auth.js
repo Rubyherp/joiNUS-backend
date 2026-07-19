@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { supabase } from "../../supabaseClient.js";
 import { validate } from "../utils/validation.js";
-import { registerSchema, loginSchema } from "../schemas/auth.js";
+import { registerSchema, loginSchema, sendOtpSchema } from "../schemas/auth.js";
 import { AppError } from "../utils/AppError.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -9,22 +9,53 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const router = Router();
 
-router.post("/register", validate(registerSchema), async (req, res) => {
-    const { email, password } = req.body;
+router.post("/send-otp", validate(sendOtpSchema), async (req, res) => {
+    const { email } = req.body;
 
-    const { data, error } = await supabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true
-    });
+    // console.log(`[send-otp] Sending OTP to ${email}...`);
+
+    const { data, error } = await supabase.auth.signInWithOtp({ email });
+
+    // console.log(`[send-otp] Response for ${email}:`, JSON.stringify({ data, error }));
 
     if (error) {
-        throw new AppError('REGISTRATION_FAILED', error.message);
+        // console.log(`[send-otp] FAILED for ${email}:`, error);
+        throw new AppError("OTP_SEND_FAILED", error.message || "Unknown error");
+    }
+
+    // console.log(`[send-otp] SUCCESS for ${email}`);
+    return res.status(200).json({ message: "OTP sent" });
+});
+
+router.post("/register", validate(registerSchema), async (req, res) => {
+    const { email, password, otp } = req.body;
+
+    const { data: verifyData, error: otpError } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: "email",
+    });
+
+    if (otpError) {
+        throw new AppError("OTP_VERIFICATION_FAILED", otpError.message);
+    }
+
+    const userId = verifyData.user?.id;
+    if (!userId) {
+        throw new AppError("REGISTRATION_FAILED", "User not found after OTP verification");
+    }
+
+    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+        password,
+    });
+
+    if (updateError) {
+        throw new AppError("REGISTRATION_FAILED", updateError.message);
     }
 
     return res.status(200).json({
         message: "User created successfully",
-        user: data.user
+        user: verifyData.user,
     });
 });
 
