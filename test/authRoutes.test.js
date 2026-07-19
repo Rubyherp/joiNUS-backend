@@ -9,6 +9,9 @@ global.fetch = mockFetch;
 
 const mockSignUp = jest.fn();
 const mockSignIn = jest.fn();
+const mockSignInWithOtp = jest.fn();
+const mockVerifyOtp = jest.fn();
+const mockAdminUpdateUser = jest.fn();
 const mockFrom = jest.fn();
 const mockStorageFrom = jest.fn();
 const mockUpload = jest.fn();
@@ -39,8 +42,11 @@ jest.unstable_mockModule("../supabaseClient.js", () => ({
         auth: {
             admin: {
                 createUser: mockSignUp,
+                updateUserById: mockAdminUpdateUser,
             },
             signInWithPassword: mockSignIn,
+            signInWithOtp: mockSignInWithOtp,
+            verifyOtp: mockVerifyOtp,
         },
         from: mockFrom,
         storage: {
@@ -71,36 +77,105 @@ beforeEach(() => {
     }))
 })
 
+describe("POST /send-otp", () => {
+    it("sends OTP successfully", async () => {
+        mockSignInWithOtp.mockResolvedValueOnce({ data: {}, error: null });
+
+        const res = await request(app).post('/send-otp').send({
+            email: "user@1.com"
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe("OTP sent");
+        expect(mockSignInWithOtp).toHaveBeenCalledWith({ email: "user@1.com" });
+    });
+
+    it("returns 400 when OTP send fails", async () => {
+        mockSignInWithOtp.mockResolvedValueOnce({
+            data: null,
+            error: { message: "Rate limit exceeded" }
+        });
+
+        const res = await request(app).post('/send-otp').send({
+            email: "user@1.com"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Rate limit exceeded");
+    });
+});
+
 describe("POST /register", () => {
+    beforeEach(() => {
+        mockVerifyOtp.mockResolvedValue({ data: { user: { id: "user-1", email: "user@1.com" } }, error: null });
+    });
+
     it("successfully registers a user", async () => {
-        mockSignUp.mockResolvedValueOnce({
-            data: { user: { id: "user-1", email: "user@1.com" } },
+        mockAdminUpdateUser.mockResolvedValueOnce({ data: { user: { id: "user-1", email: "user@1.com" } }, error: null });
+
+        const res = await request(app).post('/register').send({
+            email: "user@1.com",
+            password: "123456",
+            otp: "12345678"
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.user).toEqual({ id: "user-1", email: "user@1.com" });
+        expect(mockVerifyOtp).toHaveBeenCalledWith({
+            email: "user@1.com",
+            token: "12345678",
+            type: "email",
+        });
+        expect(mockAdminUpdateUser).toHaveBeenCalledWith("user-1", { password: "123456" });
+    });
+
+    it("returns 400 on OTP verification failure", async () => {
+        mockVerifyOtp.mockResolvedValueOnce({
+            data: null,
+            error: { message: "Invalid OTP" }
+        });
+
+        const res = await request(app).post('/register').send({
+            email: "user@1.com",
+            password: "123456",
+            otp: "00000000"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Invalid OTP");
+    });
+
+    it("returns 400 when user not found after OTP verification", async () => {
+        mockVerifyOtp.mockResolvedValueOnce({
+            data: { user: null },
             error: null
         });
 
         const res = await request(app).post('/register').send({
             email: "user@1.com",
-            password: "123456"
-        });
-
-        expect(res.status).toBe(200);
-        expect(res.body.user).toEqual({ id: "user-1", email: "user@1.com" })
-    })
-
-    it("returns 400 on registration failure", async () => {
-        mockSignUp.mockResolvedValueOnce({
-            data: null,
-            error: { message: "Registration failed" }
-        })
-
-        const res = await request(app).post('/register').send({
-            email: "user@1.com",
-            password: "123456"
+            password: "123456",
+            otp: "12345678"
         });
 
         expect(res.status).toBe(400);
-        expect(res.body.error.message).toBe("Registration failed");
-    })
+        expect(res.body.error.message).toBe("User not found after OTP verification");
+    });
+
+    it("returns 400 on password update failure after OTP verified", async () => {
+        mockAdminUpdateUser.mockResolvedValueOnce({
+            data: null,
+            error: { message: "Password update failed" }
+        });
+
+        const res = await request(app).post('/register').send({
+            email: "user@1.com",
+            password: "123456",
+            otp: "12345678"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Password update failed");
+    });
 })
 
 describe("POST /login", () => {
