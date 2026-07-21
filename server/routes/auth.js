@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { supabase } from "../../supabaseClient.js";
 import { validate } from "../utils/validation.js";
-import { registerSchema, loginSchema, sendOtpSchema, forgotPasswordSchema, resetPasswordSchema } from "../schemas/auth.js";
+import { registerSchema, loginSchema, sendOtpSchema, forgotPasswordSchema, resetPasswordSchema, changePasswordSchema } from "../schemas/auth.js";
 import { AppError } from "../utils/AppError.js";
+import authMiddleware from "../middleware/authMiddleware.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -138,6 +139,35 @@ router.post("/login", validate(loginSchema), async (req, res) => {
         user,
         hasProfile: !!profile
     });
+});
+
+router.post("/change-password", authMiddleware, validate(changePasswordSchema), async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const { email, id: userId } = req.user;
+
+    const authRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_SERVICE_ROLE_KEY,
+        },
+        body: JSON.stringify({ email, password: currentPassword }),
+    });
+    const authData = await authRes.json();
+
+    if (!authRes.ok || !authData.access_token) {
+        throw new AppError('WRONG_PASSWORD', 'Current password is incorrect');
+    }
+
+    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+        password: newPassword,
+    });
+
+    if (updateError) {
+        throw new AppError('PASSWORD_UPDATE_FAILED', updateError.message);
+    }
+
+    return res.status(200).json({ message: "Password changed successfully" });
 });
 
 export default router;
