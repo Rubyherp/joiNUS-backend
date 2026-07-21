@@ -58,7 +58,7 @@ jest.unstable_mockModule("../supabaseClient.js", () => ({
 // Mock auth middleware
 jest.unstable_mockModule("../server/middleware/authMiddleware.js", () => ({
     default: (req, res, next) => {
-        req.user = { id: "user-001" };
+        req.user = { id: "user-001", email: "user@1.com" };
         next();
     }
 }))
@@ -332,6 +332,78 @@ describe("POST /login", () => {
         expect(res.status).toBe(400);
         expect(res.body.error.message).toBe("Bad credentials");
     })
+})
+
+describe("POST /change-password", () => {
+    it("changes password successfully", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({ access_token: "new-token", user: { id: "user-001" } }),
+        });
+        mockAdminUpdateUser.mockResolvedValueOnce({ data: { user: { id: "user-001" } }, error: null });
+
+        const res = await request(app).post('/change-password').send({
+            currentPassword: "oldpass123",
+            newPassword: "newpass456"
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe("Password changed successfully");
+        expect(mockAdminUpdateUser).toHaveBeenCalledWith("user-001", { password: "newpass456" });
+    });
+
+    it("returns 400 when current password is wrong", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: false,
+            status: 400,
+            json: () => Promise.resolve({ error_description: "Invalid credentials" }),
+        });
+
+        const res = await request(app).post('/change-password').send({
+            currentPassword: "wrongpass",
+            newPassword: "newpass456"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Current password is incorrect");
+        expect(mockAdminUpdateUser).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when password update fails", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({ access_token: "new-token", user: { id: "user-001" } }),
+        });
+        mockAdminUpdateUser.mockResolvedValueOnce({
+            data: null,
+            error: { message: "Password update failed" }
+        });
+
+        const res = await request(app).post('/change-password').send({
+            currentPassword: "oldpass123",
+            newPassword: "newpass456"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Password update failed");
+    });
+
+    it("returns 400 when currentPassword is missing", async () => {
+        const res = await request(app).post('/change-password').send({
+            newPassword: "newpass456"
+        });
+
+        expect(res.status).toBe(400);
+    });
+
+    it("returns 400 when newPassword is too short", async () => {
+        const res = await request(app).post('/change-password').send({
+            currentPassword: "oldpass123",
+            newPassword: "12345"
+        });
+
+        expect(res.status).toBe(400);
+    });
 })
 
 describe("POST /profileCreation", () => {
