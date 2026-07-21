@@ -53,11 +53,16 @@ describe("E2E: Core user flow smoke test", () => {
         }
     });
 
-    itWhenConfigured("should register user A", async () => {
-        const res = await request.post("/register").send({ email: emailA, password });
-        expect(res.status).toBe(200);
-        expect(res.body.user).toBeDefined();
-        userAId = res.body.user.id;
+    itWhenConfigured("should register user A via admin API", async () => {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data, error } = await supabase.auth.admin.createUser({
+            email: emailA,
+            password,
+            email_confirm: true,
+        });
+        expect(error).toBeNull();
+        expect(data.user).toBeDefined();
+        userAId = data.user.id;
     });
 
     itWhenConfigured("should login as user A", async () => {
@@ -75,11 +80,16 @@ describe("E2E: Core user flow smoke test", () => {
         expect(res.status).toBe(200);
     });
 
-    itWhenConfigured("should register user B", async () => {
-        const res = await request.post("/register").send({ email: emailB, password });
-        expect(res.status).toBe(200);
-        expect(res.body.user).toBeDefined();
-        userBId = res.body.user.id;
+    itWhenConfigured("should register user B via admin API", async () => {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data, error } = await supabase.auth.admin.createUser({
+            email: emailB,
+            password,
+            email_confirm: true,
+        });
+        expect(error).toBeNull();
+        expect(data.user).toBeDefined();
+        userBId = data.user.id;
     });
 
     itWhenConfigured("should login as user B", async () => {

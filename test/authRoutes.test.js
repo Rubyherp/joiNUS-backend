@@ -9,10 +9,14 @@ global.fetch = mockFetch;
 
 const mockSignUp = jest.fn();
 const mockSignIn = jest.fn();
+const mockSignInWithOtp = jest.fn();
+const mockVerifyOtp = jest.fn();
+const mockAdminUpdateUser = jest.fn();
 const mockFrom = jest.fn();
 const mockStorageFrom = jest.fn();
 const mockUpload = jest.fn();
 const mockGetPublicUrl = jest.fn();
+const mockResetPasswordForEmail = jest.fn();
 
 // Mock chainable query for Supabase
 const buildChainableQuery = (overrides = {}) => {
@@ -39,8 +43,12 @@ jest.unstable_mockModule("../supabaseClient.js", () => ({
         auth: {
             admin: {
                 createUser: mockSignUp,
+                updateUserById: mockAdminUpdateUser,
             },
             signInWithPassword: mockSignIn,
+            signInWithOtp: mockSignInWithOtp,
+            verifyOtp: mockVerifyOtp,
+            resetPasswordForEmail: mockResetPasswordForEmail,
         },
         from: mockFrom,
         storage: {
@@ -52,7 +60,7 @@ jest.unstable_mockModule("../supabaseClient.js", () => ({
 // Mock auth middleware
 jest.unstable_mockModule("../server/middleware/authMiddleware.js", () => ({
     default: (req, res, next) => {
-        req.user = { id: "user-001" };
+        req.user = { id: "user-001", email: "user@1.com" };
         next();
     }
 }))
@@ -71,37 +79,195 @@ beforeEach(() => {
     }))
 })
 
+describe("POST /send-otp", () => {
+    it("sends OTP successfully", async () => {
+        mockSignInWithOtp.mockResolvedValueOnce({ data: {}, error: null });
+
+        const res = await request(app).post('/send-otp').send({
+            email: "user@1.com"
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe("OTP sent");
+        expect(mockSignInWithOtp).toHaveBeenCalledWith({ email: "user@1.com" });
+    });
+
+    it("returns 400 when OTP send fails", async () => {
+        mockSignInWithOtp.mockResolvedValueOnce({
+            data: null,
+            error: { message: "Rate limit exceeded" }
+        });
+
+        const res = await request(app).post('/send-otp').send({
+            email: "user@1.com"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Rate limit exceeded");
+    });
+});
+
 describe("POST /register", () => {
+    beforeEach(() => {
+        mockVerifyOtp.mockResolvedValue({ data: { user: { id: "user-1", email: "user@1.com" } }, error: null });
+    });
+
     it("successfully registers a user", async () => {
-        mockSignUp.mockResolvedValueOnce({
-            data: { user: { id: "user-1", email: "user@1.com" } },
+        mockAdminUpdateUser.mockResolvedValueOnce({ data: { user: { id: "user-1", email: "user@1.com" } }, error: null });
+
+        const res = await request(app).post('/register').send({
+            email: "user@1.com",
+            password: "123456",
+            otp: "12345678"
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.user).toEqual({ id: "user-1", email: "user@1.com" });
+        expect(mockVerifyOtp).toHaveBeenCalledWith({
+            email: "user@1.com",
+            token: "12345678",
+            type: "email",
+        });
+        expect(mockAdminUpdateUser).toHaveBeenCalledWith("user-1", { password: "123456" });
+    });
+
+    it("returns 400 on OTP verification failure", async () => {
+        mockVerifyOtp.mockResolvedValueOnce({
+            data: null,
+            error: { message: "Invalid OTP" }
+        });
+
+        const res = await request(app).post('/register').send({
+            email: "user@1.com",
+            password: "123456",
+            otp: "00000000"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Invalid OTP");
+    });
+
+    it("returns 400 when user not found after OTP verification", async () => {
+        mockVerifyOtp.mockResolvedValueOnce({
+            data: { user: null },
             error: null
         });
 
         const res = await request(app).post('/register').send({
             email: "user@1.com",
-            password: "123456"
-        });
-
-        expect(res.status).toBe(200);
-        expect(res.body.user).toEqual({ id: "user-1", email: "user@1.com" })
-    })
-
-    it("returns 400 on registration failure", async () => {
-        mockSignUp.mockResolvedValueOnce({
-            data: null,
-            error: { message: "Registration failed" }
-        })
-
-        const res = await request(app).post('/register').send({
-            email: "user@1.com",
-            password: "123456"
+            password: "123456",
+            otp: "12345678"
         });
 
         expect(res.status).toBe(400);
-        expect(res.body.error.message).toBe("Registration failed");
-    })
+        expect(res.body.error.message).toBe("User not found after OTP verification");
+    });
+
+    it("returns 400 on password update failure after OTP verified", async () => {
+        mockAdminUpdateUser.mockResolvedValueOnce({
+            data: null,
+            error: { message: "Password update failed" }
+        });
+
+        const res = await request(app).post('/register').send({
+            email: "user@1.com",
+            password: "123456",
+            otp: "12345678"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Password update failed");
+    });
 })
+
+describe("POST /forgot-password", () => {
+    beforeEach(() => {
+        mockResetPasswordForEmail.mockReset();
+    });
+
+    it("sends recovery email successfully", async () => {
+        mockResetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+
+        const res = await request(app).post('/forgot-password').send({
+            email: "user@1.com"
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe("Recovery email sent");
+        expect(mockResetPasswordForEmail).toHaveBeenCalledWith("user@1.com");
+    });
+
+    it("returns 400 when recovery email fails", async () => {
+        mockResetPasswordForEmail.mockResolvedValue({
+            data: null,
+            error: { message: "User not found" }
+        });
+
+        const res = await request(app).post('/forgot-password').send({
+            email: "user@1.com"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("User not found");
+    });
+});
+
+describe("POST /reset-password", () => {
+    beforeEach(() => {
+        mockVerifyOtp.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    });
+
+    it("resets password successfully", async () => {
+        mockAdminUpdateUser.mockResolvedValueOnce({ data: { user: { id: "user-1" } }, error: null });
+
+        const res = await request(app).post('/reset-password').send({
+            email: "user@1.com",
+            password: "newpass123",
+            otp: "12345678"
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe("Password reset successfully");
+        expect(mockVerifyOtp).toHaveBeenCalledWith({
+            email: "user@1.com",
+            token: "12345678",
+            type: "recovery",
+        });
+        expect(mockAdminUpdateUser).toHaveBeenCalledWith("user-1", { password: "newpass123" });
+    });
+
+    it("returns 400 on OTP verification failure", async () => {
+        mockVerifyOtp.mockResolvedValueOnce({
+            data: null,
+            error: { message: "Invalid or expired OTP" }
+        });
+
+        const res = await request(app).post('/reset-password').send({
+            email: "user@1.com",
+            password: "newpass123",
+            otp: "00000000"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Invalid or expired OTP");
+    });
+
+    it("returns 400 when user not found after OTP", async () => {
+        mockVerifyOtp.mockResolvedValueOnce({
+            data: { user: null },
+            error: null
+        });
+
+        const res = await request(app).post('/reset-password').send({
+            email: "user@1.com",
+            password: "newpass123",
+            otp: "12345678"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("User not found after OTP verification");
+    });
+});
 
 describe("POST /login", () => {
     it("logs in and returns JWT with hasProfile true", async () => {
@@ -168,6 +334,78 @@ describe("POST /login", () => {
         expect(res.status).toBe(400);
         expect(res.body.error.message).toBe("Bad credentials");
     })
+})
+
+describe("POST /change-password", () => {
+    it("changes password successfully", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({ access_token: "new-token", user: { id: "user-001" } }),
+        });
+        mockAdminUpdateUser.mockResolvedValueOnce({ data: { user: { id: "user-001" } }, error: null });
+
+        const res = await request(app).post('/change-password').send({
+            currentPassword: "oldpass123",
+            newPassword: "newpass456"
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe("Password changed successfully");
+        expect(mockAdminUpdateUser).toHaveBeenCalledWith("user-001", { password: "newpass456" });
+    });
+
+    it("returns 400 when current password is wrong", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: false,
+            status: 400,
+            json: () => Promise.resolve({ error_description: "Invalid credentials" }),
+        });
+
+        const res = await request(app).post('/change-password').send({
+            currentPassword: "wrongpass",
+            newPassword: "newpass456"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Current password is incorrect");
+        expect(mockAdminUpdateUser).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when password update fails", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({ access_token: "new-token", user: { id: "user-001" } }),
+        });
+        mockAdminUpdateUser.mockResolvedValueOnce({
+            data: null,
+            error: { message: "Password update failed" }
+        });
+
+        const res = await request(app).post('/change-password').send({
+            currentPassword: "oldpass123",
+            newPassword: "newpass456"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Password update failed");
+    });
+
+    it("returns 400 when currentPassword is missing", async () => {
+        const res = await request(app).post('/change-password').send({
+            newPassword: "newpass456"
+        });
+
+        expect(res.status).toBe(400);
+    });
+
+    it("returns 400 when newPassword is too short", async () => {
+        const res = await request(app).post('/change-password').send({
+            currentPassword: "oldpass123",
+            newPassword: "12345"
+        });
+
+        expect(res.status).toBe(400);
+    });
 })
 
 describe("POST /profileCreation", () => {
