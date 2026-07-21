@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { supabase } from "../../supabaseClient.js";
 import { validate } from "../utils/validation.js";
-import { registerSchema, loginSchema, sendOtpSchema } from "../schemas/auth.js";
+import { registerSchema, loginSchema, sendOtpSchema, forgotPasswordSchema, resetPasswordSchema } from "../schemas/auth.js";
 import { AppError } from "../utils/AppError.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -57,6 +57,47 @@ router.post("/register", validate(registerSchema), async (req, res) => {
         message: "User created successfully",
         user: verifyData.user,
     });
+});
+
+router.post("/forgot-password", validate(forgotPasswordSchema), async (req, res) => {
+    const { email } = req.body;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+
+    if (error) {
+        throw new AppError("RESET_SEND_FAILED", error.message);
+    }
+
+    return res.status(200).json({ message: "Recovery email sent" });
+});
+
+router.post("/reset-password", validate(resetPasswordSchema), async (req, res) => {
+    const { email, password, otp } = req.body;
+
+    const { data: verifyData, error: otpError } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: "recovery",
+    });
+
+    if (otpError) {
+        throw new AppError("OTP_VERIFICATION_FAILED", otpError.message);
+    }
+
+    const userId = verifyData.user?.id;
+    if (!userId) {
+        throw new AppError("RESET_FAILED", "User not found after OTP verification");
+    }
+
+    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+        password,
+    });
+
+    if (updateError) {
+        throw new AppError("RESET_FAILED", updateError.message);
+    }
+
+    return res.status(200).json({ message: "Password reset successfully" });
 });
 
 router.post("/login", validate(loginSchema), async (req, res) => {

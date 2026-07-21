@@ -178,6 +178,95 @@ describe("POST /register", () => {
     });
 })
 
+describe("POST /forgot-password", () => {
+    it("sends recovery email successfully", async () => {
+        const mockResetPassword = jest.fn().mockResolvedValue({ data: {}, error: null });
+        const { supabase } = await import("../supabaseClient.js");
+        supabase.auth.resetPasswordForEmail = mockResetPassword;
+
+        const res = await request(app).post('/forgot-password').send({
+            email: "user@1.com"
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe("Recovery email sent");
+        expect(mockResetPassword).toHaveBeenCalledWith("user@1.com");
+    });
+
+    it("returns 400 when recovery email fails", async () => {
+        const mockResetPassword = jest.fn().mockResolvedValue({
+            data: null,
+            error: { message: "User not found" }
+        });
+        const { supabase } = await import("../supabaseClient.js");
+        supabase.auth.resetPasswordForEmail = mockResetPassword;
+
+        const res = await request(app).post('/forgot-password').send({
+            email: "user@1.com"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("User not found");
+    });
+});
+
+describe("POST /reset-password", () => {
+    beforeEach(() => {
+        mockVerifyOtp.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    });
+
+    it("resets password successfully", async () => {
+        mockAdminUpdateUser.mockResolvedValueOnce({ data: { user: { id: "user-1" } }, error: null });
+
+        const res = await request(app).post('/reset-password').send({
+            email: "user@1.com",
+            password: "newpass123",
+            otp: "12345678"
+        });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe("Password reset successfully");
+        expect(mockVerifyOtp).toHaveBeenCalledWith({
+            email: "user@1.com",
+            token: "12345678",
+            type: "recovery",
+        });
+        expect(mockAdminUpdateUser).toHaveBeenCalledWith("user-1", { password: "newpass123" });
+    });
+
+    it("returns 400 on OTP verification failure", async () => {
+        mockVerifyOtp.mockResolvedValueOnce({
+            data: null,
+            error: { message: "Invalid or expired OTP" }
+        });
+
+        const res = await request(app).post('/reset-password').send({
+            email: "user@1.com",
+            password: "newpass123",
+            otp: "00000000"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("Invalid or expired OTP");
+    });
+
+    it("returns 400 when user not found after OTP", async () => {
+        mockVerifyOtp.mockResolvedValueOnce({
+            data: { user: null },
+            error: null
+        });
+
+        const res = await request(app).post('/reset-password').send({
+            email: "user@1.com",
+            password: "newpass123",
+            otp: "12345678"
+        });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error.message).toBe("User not found after OTP verification");
+    });
+});
+
 describe("POST /login", () => {
     it("logs in and returns JWT with hasProfile true", async () => {
         supabaseOverrides.single = { data: { id: "user-2" }, error: null };
