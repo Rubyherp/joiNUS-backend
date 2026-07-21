@@ -47,6 +47,7 @@ jest.unstable_mockModule("../supabaseClient.js", () => ({
             signInWithPassword: mockSignIn,
             signInWithOtp: mockSignInWithOtp,
             verifyOtp: mockVerifyOtp,
+            resetPasswordForEmail: jest.fn(),
         },
         from: mockFrom,
         storage: {
