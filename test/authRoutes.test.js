@@ -16,6 +16,7 @@ const mockFrom = jest.fn();
 const mockStorageFrom = jest.fn();
 const mockUpload = jest.fn();
 const mockGetPublicUrl = jest.fn();
+const mockResetPasswordForEmail = jest.fn();
 
 // Mock chainable query for Supabase
 const buildChainableQuery = (overrides = {}) => {
@@ -47,7 +48,7 @@ jest.unstable_mockModule("../supabaseClient.js", () => ({
             signInWithPassword: mockSignIn,
             signInWithOtp: mockSignInWithOtp,
             verifyOtp: mockVerifyOtp,
-            resetPasswordForEmail: jest.fn(),
+            resetPasswordForEmail: mockResetPasswordForEmail,
         },
         from: mockFrom,
         storage: {
@@ -180,10 +181,12 @@ describe("POST /register", () => {
 })
 
 describe("POST /forgot-password", () => {
+    beforeEach(() => {
+        mockResetPasswordForEmail.mockReset();
+    });
+
     it("sends recovery email successfully", async () => {
-        const mockResetPassword = jest.fn().mockResolvedValue({ data: {}, error: null });
-        const { supabase } = await import("../supabaseClient.js");
-        supabase.auth.resetPasswordForEmail = mockResetPassword;
+        mockResetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
 
         const res = await request(app).post('/forgot-password').send({
             email: "user@1.com"
@@ -191,16 +194,14 @@ describe("POST /forgot-password", () => {
 
         expect(res.status).toBe(200);
         expect(res.body.message).toBe("Recovery email sent");
-        expect(mockResetPassword).toHaveBeenCalledWith("user@1.com");
+        expect(mockResetPasswordForEmail).toHaveBeenCalledWith("user@1.com");
     });
 
     it("returns 400 when recovery email fails", async () => {
-        const mockResetPassword = jest.fn().mockResolvedValue({
+        mockResetPasswordForEmail.mockResolvedValue({
             data: null,
             error: { message: "User not found" }
         });
-        const { supabase } = await import("../supabaseClient.js");
-        supabase.auth.resetPasswordForEmail = mockResetPassword;
 
         const res = await request(app).post('/forgot-password').send({
             email: "user@1.com"
