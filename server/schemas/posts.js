@@ -10,7 +10,10 @@ export const createPostSchema = z.object({
     requirements: z.string().optional(),
     memberLimit: z.coerce.number().int().positive('Member limit must be positive').optional().nullable(),
     deadline: z.string().optional().nullable(),
-    isAnonymous: z.coerce.boolean().optional()
+    isAnonymous: z.coerce.boolean().optional(),
+    latitude: z.coerce.number().min(-90).max(90).nullable().optional(),
+    longitude: z.coerce.number().min(-180).max(180).nullable().optional(),
+    locationName: z.string().max(200).nullable().optional()
 });
 
 export const joinRequestSchema = z.object({
