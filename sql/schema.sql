@@ -49,10 +49,18 @@ CREATE TABLE IF NOT EXISTS posts (
   community_id UUID,
   member_count INT DEFAULT 0 NOT NULL,
   is_anonymous BOOLEAN DEFAULT false NOT NULL,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  location_name TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE,
   FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE SET NULL
 );
+
+-- Safe to run against an existing database created before location sharing.
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_name TEXT;
 
 -- ============================================================================
 -- TABLE: community_follows
