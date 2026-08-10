@@ -45,7 +45,10 @@ router.post('/', authMiddleware, upload.none(), validate(createPostSchema), asyn
         requirements,
         memberLimit,
         deadline,
-        isAnonymous
+        isAnonymous,
+        latitude,
+        longitude,
+        locationName
     } = req.body;
 
     const postPayload = {
@@ -59,7 +62,10 @@ router.post('/', authMiddleware, upload.none(), validate(createPostSchema), asyn
         requirements,
         member_limit: memberLimit || null,
         deadline: deadline || null,
-        is_anonymous: isAnonymous || false
+        is_anonymous: isAnonymous || false,
+        ...(latitude !== undefined && { latitude }),
+        ...(longitude !== undefined && { longitude }),
+        ...(locationName !== undefined && { location_name: locationName })
     }
 
     if (postId) {
